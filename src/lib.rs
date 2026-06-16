@@ -417,4 +417,14 @@ impl VeroContract {
     pub fn reset_circuit_breaker(env: Env, admin: Address) {
         circuit_breaker::reset(&env, admin);
     }
+
+    // ─── Contract upgrade ──────────────────────────────────────────
+
+    /// Upgrades the contract to a new WASM. Only callable by admin.
+    /// Uses Soroban's deployer to update the WASM hash in storage.
+    pub fn upgrade_contract(env: Env, admin: Address, new_wasm_hash: soroban_sdk::BytesN<32>) {
+        admin.require_auth();
+        let deployer = env.deployer();
+        deployer.update_current_contract_wasm(&new_wasm_hash);
+    }
 }
