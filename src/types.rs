@@ -63,6 +63,7 @@ pub enum DataKey {
     AllSnapshots,
     ActiveTask(u64),
     ArchivedTask(u64),
+    Initialized,
 }
 
 /// Every public write operation exposed by VeroContract.
