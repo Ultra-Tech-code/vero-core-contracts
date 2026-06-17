@@ -18,20 +18,25 @@ pub fn emit_pause_toggled(env: &Env, paused: bool) {
 
 pub fn emit_reward_stream_started(env: &Env, task_id: u64, contributor: &Address) {
     env.events()
-        .publish((symbol_short!("rw_start"),), (task_id, contributor.clone()));
+        .publish((symbol_short!("rw_start"), (task_id, contributor.clone()));
 }
 
 pub fn emit_reward_stream_failed(env: &Env, task_id: u64, contributor: &Address) {
     env.events()
-        .publish((symbol_short!("rw_fail"),), (task_id, contributor.clone()));
+        .publish((symbol_short!("rw_fail"), (task_id, contributor.clone()));
 }
 
 pub fn emit_circuit_breaker_triggered(env: &Env, failure_count: u32) {
     env.events()
-        .publish((symbol_short!("cb_trip"),), (failure_count,));
+        .publish((symbol_short!("cb_trip"), (failure_count,));
 }
 
 pub fn emit_task_cancelled(env: &Env, task_id: u64) {
     env.events()
         .publish((symbol_short!("cancelled"),), task_id);
+}
+
+pub fn emit_snapshot_recorded(env: &Env, timestamp: u64) {
+    env.events()
+        .publish((symbol_short!("snapshot"),), timestamp);
 }

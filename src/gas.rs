@@ -84,6 +84,11 @@ pub const COST_RESET_CIRCUIT_BREAKER: u64 = 800_000;
 ///   500_000 + 2_000_000
 pub const COST_UPGRADE_CONTRACT: u64 = 2_500_000;
 
+/// `record_snapshot`:
+///   base + get_snapshot (many reads) + 2 writes (AllSnapshots + Snapshot) + event
+///   500_000 + 20*50_000 + 2*150_000 + 30_000
+pub const COST_RECORD_SNAPSHOT: u64 = 1_830_000;
+
 // ─── Public mapping function ───────────────────────────────────────────────────
 
 /// Returns the estimated instruction-unit cost for a given [`Operation`].
@@ -114,5 +119,6 @@ pub fn get_estimated_cost(op: Operation) -> u64 {
         Operation::RecordFailure     => COST_RECORD_FAILURE,
         Operation::ResetCircuitBreaker => COST_RESET_CIRCUIT_BREAKER,
         Operation::UpgradeContract   => COST_UPGRADE_CONTRACT,
+        Operation::RecordSnapshot    => COST_RECORD_SNAPSHOT,
     }
 }

@@ -8,6 +8,7 @@ pub struct Task {
     pub is_done: bool,
     pub total_weight_accrued: u64,
     pub is_cancelled: bool,
+    pub resolved_at: u64,
 }
 
 #[contracttype]
@@ -22,6 +23,7 @@ pub struct RewardStream {
 #[contracttype]
 #[derive(Clone)]
 pub struct Snapshot {
+    pub timestamp: u64,
     pub paused: bool,
     pub failure_count: u32,
     pub weight_threshold: u64,
@@ -57,6 +59,10 @@ pub enum DataKey {
     AllTasks,
     AllVotes,
     AllRewardStreams,
+    Snapshot(u64),
+    AllSnapshots,
+    ActiveTask(u64),
+    ArchivedTask(u64),
     Initialized,
 }
 
@@ -92,6 +98,8 @@ pub enum Operation {
     ResetCircuitBreaker = 11,
     /// `upgrade_contract` — WASM upgrade; highest fixed platform cost.
     UpgradeContract = 12,
+    /// `record_snapshot` — records a state snapshot.
+    RecordSnapshot = 13,
 }
 
 #[contracterror]
@@ -114,4 +122,9 @@ pub enum ContractError {
     ContractPaused = 15,
     EscrowUnavailable = 16,
     TaskCancelled = 17,
+    TaskNotFound = 18,
+    BatchTooLarge = 19,
+    TaskAlreadyArchived = 20,
+    TaskNotStale = 21,
+    SnapshotNotFound = 22,
 }
