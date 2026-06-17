@@ -1,19 +1,33 @@
-use soroban_sdk::{Address, Env};
+use soroban_sdk::{Address, Env, Vec};
 
 use crate::reentrancy;
 use crate::storage;
 use crate::types::{ContractError, Task};
 
-pub fn register_task(env: &Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
-    admin.require_auth();
+const MAX_REGISTER_TASK_BATCH_SIZE: u32 = 32;
 
+pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>) -> Result<(), ContractError> {
+    if task_ids.len() > MAX_REGISTER_TASK_BATCH_SIZE {
+        return Err(ContractError::BatchTooLarge);
+    }
+
+    admin.require_auth();
     reentrancy::lock(env)?;
 
-    if storage::has_active_task(env, task_id) || storage::get_archived_task(env, task_id).is_some()
-    {
-        reentrancy::unlock(env);
-        return Err(ContractError::NotAuthorized);
-    }
+    for task_id in task_ids.into_iter() {
+        let key = DataKey::Task(task_id);
+        if env.storage().instance().has(&key) {
+            reentrancy::unlock(env);
+            return Err(ContractError::NotAuthorized);
+        }
+
+    let mut all_tasks: Vec<u64> = env
+        .storage()
+        .instance()
+        .get(&DataKey::AllTasks)
+        .unwrap_or(Vec::new(env));
+    all_tasks.push_back(task_id);
+    env.storage().instance().set(&DataKey::AllTasks, &all_tasks);
 
     let task = Task {
         id: task_id,
@@ -21,6 +35,7 @@ pub fn register_task(env: &Env, admin: Address, task_id: u64) -> Result<(), Cont
         is_done: false,
         resolved_at: 0,
         total_weight_accrued: 0,
+        is_cancelled: false,
     };
     storage::set_active_task(env, &task);
 
@@ -30,4 +45,11 @@ pub fn register_task(env: &Env, admin: Address, task_id: u64) -> Result<(), Cont
 
 pub fn get_task(env: &Env, task_id: u64) -> Option<Task> {
     storage::get_active_task(env, task_id)
+}
+
+pub fn get_all_tasks(env: &Env) -> Vec<u64> {
+    env.storage()
+        .instance()
+        .get(&DataKey::AllTasks)
+        .unwrap_or(Vec::new(env))
 }
