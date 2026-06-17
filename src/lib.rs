@@ -130,7 +130,8 @@ impl VeroCore {
         task_id: u64,
     ) -> Result<(), ContractError> {
         circuit_breaker::require_not_paused(&env)?;
-        task::register_task(&env, admin, task_id)
+        let task_ids = soroban_sdk::vec![&env, task_id];
+        task::register_tasks(&env, admin, task_ids)
     }
 
     pub fn cancel_task(

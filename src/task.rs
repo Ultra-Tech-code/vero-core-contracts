@@ -3,16 +3,22 @@ use soroban_sdk::{Address, Env, Vec};
 use crate::reentrancy;
 use crate::types::{ContractError, DataKey, Task};
 
-pub fn register_task(env: &Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
-    admin.require_auth();
+const MAX_REGISTER_TASK_BATCH_SIZE: u32 = 32;
 
+pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>) -> Result<(), ContractError> {
+    if task_ids.len() > MAX_REGISTER_TASK_BATCH_SIZE {
+        return Err(ContractError::BatchTooLarge);
+    }
+
+    admin.require_auth();
     reentrancy::lock(env)?;
 
-    let key = DataKey::Task(task_id);
-    if env.storage().instance().has(&key) {
-        reentrancy::unlock(env);
-        return Err(ContractError::NotAuthorized);
-    }
+    for task_id in task_ids.into_iter() {
+        let key = DataKey::Task(task_id);
+        if env.storage().instance().has(&key) {
+            reentrancy::unlock(env);
+            return Err(ContractError::NotAuthorized);
+        }
 
     let mut all_tasks: Vec<u64> = env
         .storage()
