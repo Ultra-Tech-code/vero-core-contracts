@@ -9,12 +9,7 @@ pub fn start_drips_stream(
     contributor: Address,
     task_id: u64,
 ) -> Result<(), ContractError> {
-    let task_key = DataKey::Task(task_id);
-    let task: crate::types::Task = env
-        .storage()
-        .instance()
-        .get(&task_key)
-        .ok_or(ContractError::NotAuthorized)?;
+    let task = storage::get_active_task(env, task_id).ok_or(ContractError::TaskNotFound)?;
 
     if task.is_cancelled {
         return Err(ContractError::TaskCancelled);

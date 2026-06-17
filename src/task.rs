@@ -64,6 +64,14 @@ pub fn cancel_task(env: &Env, admin: Address, task_id: u64) -> Result<(), Contra
     Ok(())
 }
 
+pub fn cancel_task(env: &Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
+    admin.require_auth();
+    let mut task = storage::get_active_task(env, task_id).ok_or(ContractError::TaskNotFound)?;
+    task.is_cancelled = true;
+    storage::set_active_task(env, &task);
+    Ok(())
+}
+
 pub fn get_task(env: &Env, task_id: u64) -> Option<Task> {
     storage::get_active_task(env, task_id)
 }

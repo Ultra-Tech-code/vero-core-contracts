@@ -16,17 +16,17 @@ use soroban_sdk::{contract, contractimpl, Address, Env, Map};
 use types::{ContractError, DataKey, RewardStream, Snapshot};
 
 pub use guardian::{add_guardian, remove_guardian, is_guardian};
-pub use task::{get_task, register_task};
+pub use task::{get_task, register_tasks};
 pub use drips::{get_reward_stream, start_drips_stream};
 pub use types::Operation;
 
 const DEFAULT_WEIGHT_THRESHOLD: u64 = 300;
 
 #[contract]
-pub struct VeroCore;
+pub struct VeroContract;
 
 #[contractimpl]
-impl VeroCore {
+impl VeroContract {
     pub fn initialize(env: Env, token: Address, lock_threshold: i128) -> Result<(), ContractError> {
         if env.storage().instance().get::<_, bool>(&DataKey::Initialized).unwrap_or(false) {
             return Err(ContractError::AlreadyInitialized);
@@ -100,6 +100,67 @@ impl VeroCore {
         reputation::get_reputation(&env, &guardian)
     }
 
+    pub fn calculate_voting_power(env: Env, guardian: Address) -> Option<u64> {
+        reputation::calculate_voting_power(&env, &guardian)
+    }
+
+    pub fn lock_tokens(env: Env, guardian: Address, amount: i128) -> Result<(), ContractError> {
+        guardian.require_auth();
+        let token: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::TokenAddress)
+            .ok_or(ContractError::NotInitialized)?;
+        let token_client = soroban_sdk::token::Client::new(&env, &token);
+        token_client.transfer(&guardian, &env.current_contract_address(), &amount);
+        let key = DataKey::LockedBalance(guardian.clone());
+        let prev: i128 = env.storage().instance().get(&key).unwrap_or(0);
+        env.storage().instance().set(&key, &(prev + amount));
+        Ok(())
+    }
+
+    pub fn unlock_tokens(env: Env, guardian: Address) -> Result<(), ContractError> {
+        guardian.require_auth();
+        if guardian::is_guardian(&env, &guardian) {
+            return Err(ContractError::StillGuardian);
+        }
+        let key = DataKey::LockedBalance(guardian.clone());
+        let amount: i128 = env.storage().instance().get(&key).unwrap_or(0);
+        if amount > 0 {
+            let token: Address = env
+                .storage()
+                .instance()
+                .get(&DataKey::TokenAddress)
+                .ok_or(ContractError::NotInitialized)?;
+            let token_client = soroban_sdk::token::Client::new(&env, &token);
+            token_client.transfer(&env.current_contract_address(), &guardian, &amount);
+            env.storage().instance().set(&key, &0i128);
+        }
+        Ok(())
+    }
+
+    pub fn resign_guardian(env: Env, guardian: Address) -> Result<(), ContractError> {
+        guardian.require_auth();
+        if !guardian::is_guardian(&env, &guardian) {
+            return Err(ContractError::NotGuardian);
+        }
+        let g_key = DataKey::Guardian(guardian.clone());
+        env.storage().instance().remove(&g_key);
+        let key = DataKey::LockedBalance(guardian.clone());
+        let amount: i128 = env.storage().instance().get(&key).unwrap_or(0);
+        if amount > 0 {
+            let token: Address = env
+                .storage()
+                .instance()
+                .get(&DataKey::TokenAddress)
+                .ok_or(ContractError::NotInitialized)?;
+            let token_client = soroban_sdk::token::Client::new(&env, &token);
+            token_client.transfer(&env.current_contract_address(), &guardian, &amount);
+            env.storage().instance().set(&key, &0i128);
+        }
+        Ok(())
+    }
+
     pub fn set_weight_threshold(env: Env, admin: Address, threshold: u64) -> Result<(), ContractError> {
         admin.require_auth();
         env.storage()
@@ -171,11 +232,11 @@ impl VeroCore {
             return Err(ContractError::DuplicateVote);
         }
 
-        let weight = match reputation::calculate_voting_power(&env, &guardian) {
-            Some(w) => w,
-            None => {
+        let weight = match reputation::get_rep(&env, &guardian) {
+            Ok(w) => w,
+            Err(e) => {
                 reentrancy::unlock(&env);
-                return Err(ContractError::NoReputationScore);
+                return Err(e);
             }
         };
 
@@ -242,6 +303,14 @@ impl VeroCore {
 
     pub fn get_task(env: Env, task_id: u64) -> Option<types::Task> {
         task::get_task(&env, task_id)
+    }
+
+    pub fn archive_task(env: Env, task_id: u64) -> Result<(), ContractError> {
+        storage::archive_task(&env, task_id)
+    }
+
+    pub fn get_archived_task(env: Env, task_id: u64) -> Option<types::Task> {
+        storage::get_archived_task(&env, task_id)
     }
 
     pub fn start_reward_stream(

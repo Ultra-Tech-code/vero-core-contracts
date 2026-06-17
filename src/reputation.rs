@@ -1,6 +1,10 @@
 use soroban_sdk::{Address, Env};
 
-use crate::types::DataKey;
+use crate::types::{ContractError, DataKey};
+
+/// Minimum reputation score required to cast a vote.
+/// Scores below this threshold are considered "low reputation" and are rejected.
+pub const MIN_REPUTATION_THRESHOLD: u64 = 100;
 
 /// Sets the reputation score for a guardian. Only callable by admin.
 ///
@@ -38,4 +42,16 @@ pub fn get_reputation(env: &Env, guardian: &Address) -> Option<u64> {
 /// The raw score IS the weight — tier labels are informational only.
 pub fn calculate_voting_power(env: &Env, guardian: &Address) -> Option<u64> {
     get_reputation(env, guardian)
+}
+
+/// Returns the reputation score for `guardian`, or an error if absent or below
+/// [`MIN_REPUTATION_THRESHOLD`].
+///
+/// This is the gate called by `vote()` to enforce the high-reputation invariant.
+pub fn get_rep(env: &Env, guardian: &Address) -> Result<u64, ContractError> {
+    let score = get_reputation(env, guardian).ok_or(ContractError::NoReputationScore)?;
+    if score < MIN_REPUTATION_THRESHOLD {
+        return Err(ContractError::InsufficientReputation);
+    }
+    Ok(score)
 }
