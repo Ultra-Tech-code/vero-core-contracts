@@ -75,8 +75,7 @@ pub enum DataKey {
     ActiveTask(u64),
     ArchivedTask(u64),
     Initialized,
-    WithdrawalRequest(u64),
-    WithdrawalCounter,
+    WithdrawalTimelock(Address),
 }
 
 /// Every public write operation exposed by VeroContract.
@@ -125,9 +124,5 @@ pub enum ContractError {
     TaskAlreadyArchived = 20,
     TaskNotStale = 21,
     SnapshotNotFound = 22,
-    WithdrawalNotFound = 23,
-    TimeLockActive = 24,
-    WithdrawalAlreadyExecuted = 25,
-    WithdrawalCancelled = 26,
-    InsufficientReputation = 27,
+    WithdrawalTimelockActive = 23,
 }

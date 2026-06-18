@@ -817,130 +817,118 @@ fn test_all_costs_above_base_invocation_overhead() {
     }
 }
 
-// ─── Treasury time-lock ─────────────────────────────────────────────
 
-const TIME_LOCK_LEDGERS: u32 = 17_280;
-
-fn fund_contract(env: &Env, token: &Address, client: &VeroContractClient, amount: i128) {
-    let asset_client = soroban_sdk::token::StellarAssetClient::new(env, token);
-    asset_client.mint(&client.address, &amount);
-}
+// ─── Withdrawal timelock tests ──────────────────────────────────────
 
 #[test]
-fn test_withdrawal_blocked_before_time_lock_expires() {
+fn test_unlock_tokens_blocked_without_timelock_request() {
     let (env, admin, token, client) = setup();
-    fund_contract(&env, &token, &client, 1_000);
+    let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
+    lock_for_guardian(&env, &token, &client, &guardian, 150);
 
-    let recipient = Address::generate(&env);
-    let request_id = client.request_withdrawal(&admin, &recipient, &500i128);
-
-    // Still within the time-lock window — execute must fail
-    let result = client.try_execute_withdrawal(&request_id);
-    assert!(result.is_err(), "withdrawal must be blocked before time-lock expires");
+    // Try to unlock without first requesting - should fail
+    let result = client.try_unlock_tokens(&guardian);
+    assert!(result.is_err());
 }
 
 #[test]
-fn test_withdrawal_succeeds_after_time_lock() {
+fn test_request_unlock_initiates_timelock() {
     let (env, admin, token, client) = setup();
-    fund_contract(&env, &token, &client, 1_000);
+    let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
+    lock_for_guardian(&env, &token, &client, &guardian, 150);
 
-    let recipient = Address::generate(&env);
-    let request_id = client.request_withdrawal(&admin, &recipient, &500i128);
-
-    // Advance ledger past the time-lock window
-    let start_seq = env.ledger().sequence();
-    env.ledger().set_sequence_number(start_seq + TIME_LOCK_LEDGERS);
-
-    client.execute_withdrawal(&request_id);
-
-    let req = client.get_withdrawal_request(&request_id).unwrap();
-    assert!(req.is_executed);
+    // Request unlock should succeed
+    client.request_unlock(&guardian);
+    
+    // Timelock should be set
+    let timelock = client.get_withdrawal_timelock(&guardian);
+    assert!(timelock.is_some());
 }
 
 #[test]
-fn test_withdrawal_request_stored_with_correct_fields() {
+fn test_unlock_tokens_blocked_before_24_hours() {
     let (env, admin, token, client) = setup();
-    fund_contract(&env, &token, &client, 1_000);
+    let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
+    lock_for_guardian(&env, &token, &client, &guardian, 150);
 
-    let recipient = Address::generate(&env);
-    let amount: i128 = 250;
-    let request_id = client.request_withdrawal(&admin, &recipient, &amount);
+    // Request unlock
+    client.request_unlock(&guardian);
 
-    let req = client.get_withdrawal_request(&request_id).unwrap();
-    assert_eq!(req.id, request_id);
-    assert_eq!(req.recipient, recipient);
-    assert_eq!(req.amount, amount);
-    assert!(!req.is_executed);
-    assert!(!req.is_cancelled);
+    // Try to unlock immediately - should fail
+    let result = client.try_unlock_tokens(&guardian);
+    assert!(result.is_err());
 }
 
 #[test]
-fn test_withdrawal_can_be_cancelled_by_admin() {
+fn test_unlock_tokens_succeeds_after_24_hours() {
     let (env, admin, token, client) = setup();
-    fund_contract(&env, &token, &client, 1_000);
+    let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
+    lock_for_guardian(&env, &token, &client, &guardian, 150);
 
-    let recipient = Address::generate(&env);
-    let request_id = client.request_withdrawal(&admin, &recipient, &500i128);
-
-    client.cancel_withdrawal(&admin, &request_id);
-
-    let req = client.get_withdrawal_request(&request_id).unwrap();
-    assert!(req.is_cancelled);
+    // Request unlock
+    client.request_unlock(&guardian);
+    
+    // Get the timelock timestamp
+    let timelock = client.get_withdrawal_timelock(&guardian).unwrap();
+    
+    // Advance ledger by 24 hours + 1 second
+    let jump = 86401u64;
+    env.ledger().set_timestamp(timelock + jump);
+    
+    // Now unlock should succeed
+    let result = client.try_unlock_tokens(&guardian);
+    assert!(result.is_ok());
+    
+    // Timelock should be cleared
+    let new_timelock = client.get_withdrawal_timelock(&guardian);
+    assert!(new_timelock.is_none());
 }
 
 #[test]
-fn test_cancelled_withdrawal_cannot_be_executed() {
+fn test_resign_guardian_blocked_before_24_hours() {
     let (env, admin, token, client) = setup();
-    fund_contract(&env, &token, &client, 1_000);
+    let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
+    lock_for_guardian(&env, &token, &client, &guardian, 150);
 
-    let recipient = Address::generate(&env);
-    let request_id = client.request_withdrawal(&admin, &recipient, &500i128);
+    // Request unlock
+    client.request_unlock(&guardian);
 
-    client.cancel_withdrawal(&admin, &request_id);
-
-    // Advance past time-lock
-    let start_seq = env.ledger().sequence();
-    env.ledger().set_sequence_number(start_seq + TIME_LOCK_LEDGERS);
-
-    let result = client.try_execute_withdrawal(&request_id);
-    assert!(result.is_err(), "cancelled withdrawal must not be executable");
+    // Try to resign immediately - should fail
+    let result = client.try_resign_guardian(&guardian);
+    assert!(result.is_err());
 }
 
 #[test]
-fn test_withdrawal_cannot_be_executed_twice() {
+fn test_resign_guardian_succeeds_after_24_hours() {
     let (env, admin, token, client) = setup();
-    fund_contract(&env, &token, &client, 1_000);
+    let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
+    lock_for_guardian(&env, &token, &client, &guardian, 150);
 
-    let recipient = Address::generate(&env);
-    let request_id = client.request_withdrawal(&admin, &recipient, &500i128);
-
-    let start_seq = env.ledger().sequence();
-    env.ledger().set_sequence_number(start_seq + TIME_LOCK_LEDGERS);
-
-    client.execute_withdrawal(&request_id);
-    let result = client.try_execute_withdrawal(&request_id);
-    assert!(result.is_err(), "already-executed withdrawal must be rejected");
+    // Request unlock
+    client.request_unlock(&guardian);
+    
+    // Get the timelock timestamp
+    let timelock = client.get_withdrawal_timelock(&guardian).unwrap();
+    
+    // Advance ledger by 24 hours + 1 second
+    let jump = 86401u64;
+    env.ledger().set_timestamp(timelock + jump);
+    
+    // Now resign should succeed
+    let result = client.try_resign_guardian(&guardian);
+    assert!(result.is_ok());
+    
+    // Guardian should no longer be registered
+    assert!(!client.is_guardian(&guardian));
 }
 
 #[test]
-fn test_non_admin_cannot_request_withdrawal() {
-    let (env, _admin, token, client) = setup();
-    fund_contract(&env, &token, &client, 1_000);
-
-    let stranger = Address::generate(&env);
-    let recipient = Address::generate(&env);
-    let result = client.try_request_withdrawal(&stranger, &recipient, &500i128);
-    assert!(result.is_err(), "non-admin must not be allowed to request a withdrawal");
-}
-
-#[test]
-fn test_withdrawal_counter_increments_per_request() {
+fn test_request_unlock_fails_if_still_guardian() {
     let (env, admin, token, client) = setup();
-    fund_contract(&env, &token, &client, 2_000);
+    let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
+    lock_for_guardian(&env, &token, &client, &guardian, 150);
 
-    let recipient = Address::generate(&env);
-    let id1 = client.request_withdrawal(&admin, &recipient, &100i128);
-    let id2 = client.request_withdrawal(&admin, &recipient, &200i128);
-    assert_ne!(id1, id2);
-    assert_eq!(id2, id1 + 1);
+    // Try to request unlock while still a guardian - should fail
+    let result = client.try_request_unlock(&guardian);
+    assert!(result.is_err());
 }
