@@ -1,9 +1,20 @@
 #![cfg(test)]
 
-use soroban_sdk::{contract, contractimpl, testutils::Address as _, Address, Env};
-use vero_core_contracts::{Operation, VeroContractClient};
+use soroban_sdk::{
+    contract, contractimpl,
+    testutils::{Address as _, Events as _, Ledger as _},
+    Address, Env, Vec as SorobanVec,
+};
+use vero_core_contracts::{register_tasks, Operation, VeroContractClient};
 
 const LOCK_THRESHOLD: i128 = 100;
+const MAX_TASK_ID: u64 = u64::MAX / 2;
+const MAX_TOKEN_AMOUNT: i128 = i128::MAX / 2;
+const MAX_LOCK_THRESHOLD: i128 = MAX_TOKEN_AMOUNT - 1;
+const MAX_REPUTATION_SCORE: u64 = 1_000_000_000;
+const MAX_WEIGHT_THRESHOLD: u64 = 1_000_000_000_000;
+const MAX_REGISTER_TASK_BATCH_SIZE: u64 = 32;
+const ARCHIVE_AFTER_SECONDS: u64 = 30 * 24 * 60 * 60;
 
 fn setup() -> (Env, Address, Address, Address, VeroContractClient<'static>) {
 use soroban_sdk::{
@@ -254,10 +265,42 @@ fn test_insufficient_weight_does_not_resolve_task() {
 
     assert!(client.try_initialize(&token_addr, &0).is_err());
     assert!(client.try_initialize(&token_addr, &-1).is_err());
+    assert!(client
+        .try_initialize(&token_addr, &MAX_TOKEN_AMOUNT)
+        .is_err());
     assert!(client.try_initialize(&token_addr, &i128::MAX).is_err());
 
     client.initialize(&token_addr, &LOCK_THRESHOLD);
     assert!(client.try_initialize(&token_addr, &LOCK_THRESHOLD).is_err());
+}
+
+#[test]
+fn numeric_minimum_and_maximum_boundaries_succeed() {
+    let (env, _contract_id, admin, token, client) = setup_with_lock_threshold(1);
+    let guardian = add_guardian_with_rep(&env, &client, &admin, 1);
+
+    client.set_reputation(&admin, &guardian, &MAX_REPUTATION_SCORE);
+    client.set_weight_threshold(&admin, &MAX_WEIGHT_THRESHOLD);
+    client.register_task(&admin, &MAX_TASK_ID);
+    mint_and_lock(&env, &token, &client, &guardian, MAX_TOKEN_AMOUNT);
+
+    assert_eq!(client.get_reputation(&guardian), Some(MAX_REPUTATION_SCORE));
+    assert_eq!(client.get_weight_threshold(), MAX_WEIGHT_THRESHOLD);
+    assert!(client.get_task(&MAX_TASK_ID).is_some());
+}
+
+#[test]
+fn maximum_lock_threshold_still_allows_max_balance_vote() {
+    let (env, _contract_id, admin, token, client) = setup_with_lock_threshold(MAX_LOCK_THRESHOLD);
+    let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
+
+    client.register_task(&admin, &1);
+    mint_and_lock(&env, &token, &client, &guardian, MAX_TOKEN_AMOUNT);
+    client.vote(&guardian, &1);
+
+    let task = client.get_task(&1).unwrap();
+    assert!(task.is_done);
+    assert_eq!(task.total_weight_accrued, 300);
 }
 
 #[test]
@@ -510,6 +553,25 @@ fn token_amount_validation_rejects_zero_negative_and_over_max_without_locking() 
 }
 
 #[test]
+fn aggregate_locked_amount_above_max_is_rejected_without_transfer() {
+    let (env, _contract_id, admin, token, client) = setup();
+    let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
+    let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token);
+    let balance_client = soroban_sdk::token::Client::new(&env, &token);
+
+    mint_and_lock(&env, &token, &client, &guardian, MAX_TOKEN_AMOUNT);
+    token_client.mint(&guardian, &1);
+
+    assert_eq!(balance_client.balance(&guardian), 1);
+    assert!(client.try_lock_tokens(&guardian, &1).is_err());
+    assert_eq!(balance_client.balance(&guardian), 1);
+
+    client.register_task(&admin, &89);
+    client.vote(&guardian, &89);
+    assert_eq!(client.get_task(&89).unwrap().votes, 1);
+}
+
+#[test]
 fn unauthorized_admin_call_is_still_rejected_and_state_is_unchanged() {
     let env = Env::default();
     let contract_id = env.register_contract(None, vero_core_contracts::VeroContract);
@@ -619,6 +681,80 @@ fn paused_contract_rejects_config_updates() {
     client.unpause(&admin);
     client.add_guardian(&admin, &guardian);
     assert!(client.is_guardian(&guardian));
+}
+
+#[test]
+fn register_task_batch_size_boundaries_are_enforced() {
+    let (env, contract_id, admin, _token, client) = setup();
+    let mut max_batch = SorobanVec::new(&env);
+    for task_id in 1..=MAX_REGISTER_TASK_BATCH_SIZE {
+        max_batch.push_back(task_id);
+    }
+
+    let max_result = env.as_contract(&contract_id, || {
+        register_tasks(&env, admin.clone(), max_batch)
+    });
+    assert!(max_result.is_ok());
+    assert!(client.get_task(&1).is_some());
+    assert!(client.get_task(&MAX_REGISTER_TASK_BATCH_SIZE).is_some());
+
+    let mut oversized_batch = SorobanVec::new(&env);
+    for task_id in 100..=(100 + MAX_REGISTER_TASK_BATCH_SIZE) {
+        oversized_batch.push_back(task_id);
+    }
+
+    let oversized_result = env.as_contract(&contract_id, || {
+        register_tasks(&env, admin.clone(), oversized_batch)
+    });
+    assert!(oversized_result.is_err());
+    assert!(client.get_task(&100).is_none());
+    assert!(client
+        .get_task(&(100 + MAX_REGISTER_TASK_BATCH_SIZE))
+        .is_none());
+}
+
+#[test]
+fn archive_timestamp_underflow_is_safely_rejected_without_mutation() {
+    let (env, _contract_id, admin, token, client) = setup();
+
+    env.ledger().set_timestamp(1_000);
+    resolved_task(&env, &token, &client, &admin, 61);
+    assert_eq!(client.get_task(&61).unwrap().resolved_at, 1_000);
+
+    env.ledger().set_timestamp(0);
+    assert!(client.try_archive_task(&61).is_err());
+    assert!(client.get_task(&61).is_some());
+    assert!(client.get_archived_task(&61).is_none());
+
+    env.ledger().set_timestamp(1_000 + ARCHIVE_AFTER_SECONDS);
+    assert!(client.try_archive_task(&61).is_err());
+    assert!(client.get_task(&61).is_some());
+    assert!(client.get_archived_task(&61).is_none());
+
+    env.ledger()
+        .set_timestamp(1_000 + ARCHIVE_AFTER_SECONDS + 1);
+    client.archive_task(&61);
+    assert!(client.get_task(&61).is_none());
+    assert!(client.get_archived_task(&61).is_some());
+}
+
+#[test]
+fn invalid_numeric_inputs_do_not_emit_success_events() {
+    let (env, _contract_id, admin, token, client) = setup();
+    let contributor = Address::generate(&env);
+    let drips_contract_id = env.register_contract(None, MockDripsContract);
+
+    let before_register_events = env.events().all().len();
+    assert!(client.try_register_task(&admin, &0).is_err());
+    assert_eq!(env.events().all().len(), before_register_events);
+
+    resolved_task(&env, &token, &client, &admin, 62);
+    let before_stream_events = env.events().all().len();
+    assert!(client
+        .try_start_reward_stream(&admin, &drips_contract_id, &contributor, &0)
+        .is_err());
+    assert_eq!(env.events().all().len(), before_stream_events);
+    assert!(client.get_reward_stream(&0).is_none());
 }
 
 #[test]
