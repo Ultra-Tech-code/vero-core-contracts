@@ -4,7 +4,7 @@ use crate::types::ContractError;
 
 pub const MAX_TASK_ID: u64 = u64::MAX / 2;
 pub const MAX_TOKEN_AMOUNT: i128 = i128::MAX / 2;
-pub const MAX_LOCK_THRESHOLD: i128 = MAX_TOKEN_AMOUNT;
+pub const MAX_LOCK_THRESHOLD: i128 = MAX_TOKEN_AMOUNT - 1;
 pub const MAX_REPUTATION_SCORE: u64 = 1_000_000_000;
 pub const MAX_WEIGHT_THRESHOLD: u64 = 1_000_000_000_000;
 
