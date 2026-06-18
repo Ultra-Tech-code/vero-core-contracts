@@ -51,26 +51,33 @@ pub struct Snapshot {
 pub use crate::contracts::storage_layout::DataKey;
 
 #[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum BatchCall {
-    RegisterTask(Address, u64),
-    CancelTask(Address, u64),
-    Vote(Address, u64),
-    AddGuardian(Address, Address),
-    RemoveGuardian(Address, Address),
-    SetReputation(Address, Address, u64),
-    LockTokens(Address, i128),
-    RequestUnlock(Address),
-    UnlockTokens(Address),
-    ResignGuardian(Address),
-    SetWeightThreshold(Address, u64),
-    SetVaultAddress(Address, Address),
-    StartRewardStream(Address, Address, Address, u64),
-    TogglePause(Address),
-    Pause(Address),
-    Unpause(Address),
-    RecordFailure(Address),
-    ResetCircuitBreaker(Address),
+#[derive(Clone)]
+pub enum DataKey {
+    Guardian(Address),
+    Reputation(Address),
+    WeightThreshold,
+    Task(u64),
+    Voted(u64, Address),
+    TaskVoters(u64),
+    Admin,
+    DripsAddress,
+    VaultAddress,
+    RewardStream(u64),
+    TokenAddress,
+    LockThreshold,
+    LockedBalance(Address),
+    Lock,
+    FailureCount,
+    Paused,
+    AllGuardians,
+    AllTasks,
+    AllRewardStreams,
+    Snapshot(u64),
+    AllSnapshots,
+    ActiveTask(u64),
+    ArchivedTask(u64),
+    Initialized,
+    WithdrawalTimelock(Address),
 }
 
 /// Every public write operation exposed by VeroContract.

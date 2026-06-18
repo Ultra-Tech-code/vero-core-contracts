@@ -417,6 +417,23 @@ fn test_locked_balance_must_exceed_threshold() {
 }
 
 #[test]
+fn test_duplicate_vote_rejected() {
+    let (env, admin, token, client) = setup();
+    let g = Address::generate(&env);
+
+    client.add_guardian(&admin, &g);
+    client.set_reputation(&admin, &g, &100u64);
+    client.register_task(&admin, &10u64);
+
+    lock_for_guardian(&env, &token, &client, &g, 100);
+    client.vote(&g, &10u64);
+
+    let result = client.try_vote(&g, &10u64);
+    assert!(result.is_err());
+    assert_eq!(client.get_task(&10u64).unwrap().votes, 1);
+}
+
+#[test]
 fn test_resign_guardian_refunds_tokens() {
     let (env, admin, token, client) = setup();
     let g = Address::generate(&env);

@@ -1,5 +1,5 @@
 use crate::types::{ContractError, DataKey, Task};
-use soroban_sdk::Env;
+use soroban_sdk::{Address, Env, Vec};
 
 pub const ARCHIVE_AFTER_SECONDS: u64 = 30 * 24 * 60 * 60;
 
@@ -51,4 +51,21 @@ pub fn archive_task(env: &Env, task_id: u64) -> Result<(), ContractError> {
     env.storage().instance().remove(&active_task_key(task_id));
 
     Ok(())
+}
+
+pub fn task_voters_key(task_id: u64) -> DataKey {
+    DataKey::TaskVoters(task_id)
+}
+
+pub fn get_task_voters(env: &Env, task_id: u64) -> Vec<Address> {
+    env.storage()
+        .instance()
+        .get(&task_voters_key(task_id))
+        .unwrap_or(Vec::new(env))
+}
+
+pub fn append_task_voter(env: &Env, task_id: u64, voter: &Address) {
+    let mut voters = get_task_voters(env, task_id);
+    voters.push_back(voter.clone());
+    env.storage().instance().set(&task_voters_key(task_id), &voters);
 }
