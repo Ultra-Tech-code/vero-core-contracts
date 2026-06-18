@@ -1,4 +1,4 @@
-use soroban_sdk::{contracterror, contracttype, Address, Map, Vec};
+use soroban_sdk::{contracterror, contracttype, Address, Map};
 
 #[contracttype]
 #[derive(Clone)]
@@ -97,6 +97,8 @@ pub enum Operation {
     UpgradeContract = 12,
     /// `record_snapshot` — records a state snapshot.
     RecordSnapshot = 13,
+    /// `purge_task` — removes a terminal task from storage.
+    PurgeTask = 14,
 }
 
 #[contracterror]
@@ -125,4 +127,8 @@ pub enum ContractError {
     TaskNotStale = 21,
     SnapshotNotFound = 22,
     WithdrawalTimelockActive = 23,
+    /// Task is still active (not done and not cancelled) and cannot be purged.
+    TaskNotTerminal = 24,
+    /// Guardian's reputation score is below the minimum threshold to vote.
+    InsufficientReputation = 25,
 }

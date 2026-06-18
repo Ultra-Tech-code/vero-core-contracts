@@ -55,3 +55,8 @@ pub fn emit_snapshot_recorded(env: &Env, timestamp: u64) {
     env.events()
         .publish((symbol_short!("snapshot"),), timestamp);
 }
+
+pub fn emit_task_purged(env: &Env, task_id: u64) {
+    env.events()
+        .publish((symbol_short!("purged"),), task_id);
+}

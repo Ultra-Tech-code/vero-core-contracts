@@ -19,7 +19,7 @@ pub fn check_timelock_expired(env: &Env, guardian: &Address) -> Result<(), Contr
             }
             Ok(())
         }
-        None => Ok(()), // No timelock set, allow withdrawal
+        None => Err(ContractError::WithdrawalTimelockActive), // No timelock set — must call request_unlock first
     }
 }
 

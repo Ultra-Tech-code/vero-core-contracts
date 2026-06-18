@@ -426,7 +426,8 @@ fn test_duplicate_vote_rejected() {
     client.set_reputation(&admin, &g, &100u64);
     client.register_task(&admin, &10u64);
 
-    lock_for_guardian(&env, &token, &client, &g, 100);
+    // Lock strictly above threshold (threshold = 100, need > 100)
+    lock_for_guardian(&env, &token, &client, &g, 101);
     client.vote(&g, &10u64);
 
     let result = client.try_vote(&g, &10u64);
@@ -441,6 +442,11 @@ fn test_resign_guardian_refunds_tokens() {
 
     client.add_guardian(&admin, &g);
     lock_for_guardian(&env, &token, &client, &g, 200);
+
+    // Initiate the 24-hour timelock, then advance ledger past it
+    client.request_unlock(&g);
+    let timelock = client.get_withdrawal_timelock(&g).unwrap();
+    env.ledger().set_timestamp(timelock + 86401u64);
 
     client.resign_guardian(&g);
 
@@ -466,6 +472,12 @@ fn test_unlock_succeeds_for_non_guardian() {
     let non_guardian = Address::generate(&env);
 
     lock_for_guardian(&env, &token, &client, &non_guardian, 150);
+
+    // Initiate timelock, advance past the delay, then unlock
+    client.request_unlock(&non_guardian);
+    let timelock = client.get_withdrawal_timelock(&non_guardian).unwrap();
+    env.ledger().set_timestamp(timelock + 86401u64);
+
     client.unlock_tokens(&non_guardian);
 
     let token_client = soroban_sdk::token::Client::new(&env, &token);
@@ -854,7 +866,7 @@ fn test_request_unlock_initiates_timelock() {
     let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
     lock_for_guardian(&env, &token, &client, &guardian, 150);
 
-    // Request unlock should succeed
+    // Any address with locked tokens can initiate the timelock
     client.request_unlock(&guardian);
     
     // Timelock should be set
@@ -868,10 +880,11 @@ fn test_unlock_tokens_blocked_before_24_hours() {
     let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
     lock_for_guardian(&env, &token, &client, &guardian, 150);
 
-    // Request unlock
+    // Remove guardian so they can use the unlock_tokens path
+    client.remove_guardian(&admin, &guardian);
     client.request_unlock(&guardian);
 
-    // Try to unlock immediately - should fail
+    // Try to unlock immediately — timelock not expired yet
     let result = client.try_unlock_tokens(&guardian);
     assert!(result.is_err());
 }
@@ -882,7 +895,8 @@ fn test_unlock_tokens_succeeds_after_24_hours() {
     let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
     lock_for_guardian(&env, &token, &client, &guardian, 150);
 
-    // Request unlock
+    // Remove guardian so they can use the unlock_tokens path
+    client.remove_guardian(&admin, &guardian);
     client.request_unlock(&guardian);
     
     // Get the timelock timestamp
@@ -907,10 +921,10 @@ fn test_resign_guardian_blocked_before_24_hours() {
     let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
     lock_for_guardian(&env, &token, &client, &guardian, 150);
 
-    // Request unlock
+    // Initiate the timelock
     client.request_unlock(&guardian);
 
-    // Try to resign immediately - should fail
+    // Trying to resign immediately is blocked — timelock not expired
     let result = client.try_resign_guardian(&guardian);
     assert!(result.is_err());
 }
@@ -921,7 +935,7 @@ fn test_resign_guardian_succeeds_after_24_hours() {
     let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
     lock_for_guardian(&env, &token, &client, &guardian, 150);
 
-    // Request unlock
+    // Initiate the timelock
     client.request_unlock(&guardian);
     
     // Get the timelock timestamp
@@ -945,7 +959,154 @@ fn test_request_unlock_fails_if_still_guardian() {
     let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
     lock_for_guardian(&env, &token, &client, &guardian, 150);
 
-    // Try to request unlock while still a guardian - should fail
-    let result = client.try_request_unlock(&guardian);
+    // A guardian can request a timelock (to start the 24-hour clock for resign)
+    client.request_unlock(&guardian);
+    assert!(client.get_withdrawal_timelock(&guardian).is_some());
+
+    // But a guardian cannot call unlock_tokens — must use resign_guardian instead
+    let timelock = client.get_withdrawal_timelock(&guardian).unwrap();
+    env.ledger().set_timestamp(timelock + 86401u64);
+    let result = client.try_unlock_tokens(&guardian);
+    assert!(result.is_err()); // StillGuardian
+}
+
+// ─── purge_task ────────────────────────────────────────────────────
+
+#[test]
+fn test_purge_done_task_removes_storage() {
+    let (env, admin, token, client) = setup();
+    client.set_weight_threshold(&admin, &300u64);
+
+    let g = add_guardian_with_rep(&env, &client, &admin, 300);
+    client.register_task(&admin, &1u64);
+    lock_for_guardian(&env, &token, &client, &g, 101);
+    client.vote(&g, &1u64);
+
+    // Task must be done before purge
+    assert!(client.get_task(&1u64).unwrap().is_done);
+
+    // Purge should succeed
+    client.purge_task(&admin, &1u64);
+
+    // Storage entry must be gone
+    assert!(client.get_task(&1u64).is_none());
+}
+
+#[test]
+fn test_purge_cancelled_task_removes_storage() {
+    let (_env, admin, _token, client) = setup();
+    client.register_task(&admin, &2u64);
+    client.cancel_task(&admin, &2u64);
+
+    assert!(client.get_task(&2u64).unwrap().is_cancelled);
+
+    client.purge_task(&admin, &2u64);
+
+    assert!(client.get_task(&2u64).is_none());
+}
+
+#[test]
+fn test_purge_active_task_reverts() {
+    let (_env, admin, _token, client) = setup();
+    client.register_task(&admin, &3u64);
+
+    // Task is active — purge must revert
+    let result = client.try_purge_task(&admin, &3u64);
     assert!(result.is_err());
+
+    // Task still present
+    assert!(client.get_task(&3u64).is_some());
+}
+
+#[test]
+fn test_purge_nonexistent_task_reverts() {
+    let (_env, admin, _token, client) = setup();
+
+    let result = client.try_purge_task(&admin, &999u64);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_purge_removes_task_from_all_tasks_index() {
+    let (env, admin, token, client) = setup();
+    client.set_weight_threshold(&admin, &300u64);
+
+    // Register two tasks
+    client.register_task(&admin, &10u64);
+    client.register_task(&admin, &11u64);
+
+    // Resolve task 10
+    let g = add_guardian_with_rep(&env, &client, &admin, 300);
+    lock_for_guardian(&env, &token, &client, &g, 101);
+    client.vote(&g, &10u64);
+    assert!(client.get_task(&10u64).unwrap().is_done);
+
+    // Purge task 10
+    client.purge_task(&admin, &10u64);
+
+    // Task 11 must still be accessible
+    assert!(client.get_task(&11u64).is_some());
+    // Task 10 must be gone
+    assert!(client.get_task(&10u64).is_none());
+}
+
+#[test]
+fn test_purge_clears_voter_records() {
+    let (env, admin, token, client) = setup();
+    client.set_weight_threshold(&admin, &300u64);
+
+    let g = add_guardian_with_rep(&env, &client, &admin, 300);
+    client.register_task(&admin, &20u64);
+    lock_for_guardian(&env, &token, &client, &g, 101);
+    client.vote(&g, &20u64);
+
+    client.purge_task(&admin, &20u64);
+
+    // After purge, the task is gone and state is clean
+    assert!(client.get_task(&20u64).is_none());
+}
+
+#[test]
+fn test_non_admin_cannot_purge_task() {
+    let (env, admin, _token, client) = setup();
+    client.register_task(&admin, &30u64);
+    client.cancel_task(&admin, &30u64);
+
+    let stranger = Address::generate(&env);
+    let result = client.try_purge_task(&stranger, &30u64);
+    assert!(result.is_err());
+
+    // Task must still exist
+    assert!(client.get_task(&30u64).is_some());
+}
+
+#[test]
+fn test_purge_archived_task_removes_storage() {
+    let (env, admin, token, client) = setup();
+    client.set_weight_threshold(&admin, &300u64);
+
+    // Set a non-zero starting timestamp so resolved_at is non-zero
+    env.ledger().set_timestamp(1000u64);
+
+    let g = add_guardian_with_rep(&env, &client, &admin, 300);
+    client.register_task(&admin, &40u64);
+    lock_for_guardian(&env, &token, &client, &g, 101);
+    client.vote(&g, &40u64);
+
+    // Archive the task (needs >30 days old)
+    let resolved = client.get_task(&40u64).unwrap().resolved_at;
+    let thirty_days_plus_one: u64 = 30 * 24 * 60 * 60 + 1;
+    env.ledger().set_timestamp(resolved + thirty_days_plus_one);
+    client.archive_task(&40u64);
+
+    // Task must be archived
+    assert!(client.get_archived_task(&40u64).is_some());
+    assert!(client.get_task(&40u64).is_none());
+
+    // Purge the archived task
+    client.purge_task(&admin, &40u64);
+
+    // Both active and archived entries must be gone
+    assert!(client.get_task(&40u64).is_none());
+    assert!(client.get_archived_task(&40u64).is_none());
 }

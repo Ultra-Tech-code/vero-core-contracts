@@ -33,7 +33,7 @@ impl VeroContract {
             return Err(ContractError::AlreadyInitialized);
         }
         env.storage().instance().set(&DataKey::Initialized, &true);
-        env.storage().instance().set(&DataKey::Admin, &token);
+        env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::TokenAddress, &token);
         env.storage().instance().set(&DataKey::LockThreshold, &lock_threshold);
         env.storage().instance().set(&DataKey::Paused, &false);
@@ -120,9 +120,6 @@ impl VeroContract {
 
     pub fn request_unlock(env: Env, guardian: Address) -> Result<(), ContractError> {
         guardian.require_auth();
-        if guardian::is_guardian(&env, &guardian) {
-            return Err(ContractError::StillGuardian);
-        }
         timelock::initiate_withdrawal(&env, guardian);
         Ok(())
     }
@@ -160,7 +157,8 @@ impl VeroContract {
             return Err(ContractError::NotGuardian);
         }
         
-        // Check if timelock has expired
+        // Guardian must call request_unlock first to start the 24-hour clock,
+        // then call resign_guardian again after the delay expires.
         timelock::check_timelock_expired(&env, &guardian)?;
         
         let g_key = DataKey::Guardian(guardian.clone());
@@ -228,6 +226,33 @@ impl VeroContract {
     ) -> Result<(), ContractError> {
         circuit_breaker::require_not_paused(&env)?;
         task::cancel_task(&env, admin, task_id)
+    }
+
+    /// Purge a terminal task (done or cancelled) from contract storage.
+    ///
+    /// Removes the task struct, its voter list, each individual `Voted` record,
+    /// and the task id from the `AllTasks` index. This reduces on-chain state
+    /// size and the cost of future `get_snapshot` calls.
+    ///
+    /// # Errors
+    /// - `NotInitialized` — contract has not been initialised.
+    /// - `NotAuthorized` — caller is not the stored admin.
+    /// - `TaskNotFound` — no active or archived task exists for `task_id`.
+    /// - `TaskNotTerminal` — the task is still active (neither done nor cancelled).
+    pub fn purge_task(
+        env: Env,
+        admin: Address,
+        task_id: u64,
+    ) -> Result<(), ContractError> {
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::NotInitialized)?;
+        if admin != stored_admin {
+            return Err(ContractError::NotAuthorized);
+        }
+        task::purge_task(&env, admin, task_id)
     }
 
     pub fn vote(env: Env, guardian: Address, task_id: u64) -> Result<(), ContractError> {
@@ -416,7 +441,7 @@ impl VeroContract {
         let mut votes = Map::new(&env);
         let all_tasks = task::get_all_tasks(&env);
         for t in all_tasks.iter() {
-            let task_id = *t;
+            let task_id = t;
             let task_voters = storage::get_task_voters(&env, task_id);
             for voter in task_voters.iter() {
                 votes.set((task_id, voter.clone()), true);
@@ -448,7 +473,7 @@ impl VeroContract {
     }
 
     pub fn record_snapshot(env: Env) -> Result<(), ContractError> {
-        let mut snapshot = Self::get_snapshot(env.clone());
+        let snapshot = Self::get_snapshot(env.clone());
         let timestamp = snapshot.timestamp;
 
         let mut all_snapshots: soroban_sdk::Vec<u64> = env

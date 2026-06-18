@@ -5,6 +5,12 @@ use crate::reentrancy;
 use crate::storage;
 use crate::types::{ContractError, DataKey, Task};
 
+/// A task is "terminal" when it has been fully resolved or explicitly cancelled.
+/// Only terminal tasks may be purged.
+fn is_terminal(task: &Task) -> bool {
+    task.is_done || task.is_cancelled
+}
+
 const MAX_REGISTER_TASK_BATCH_SIZE: u32 = 32;
 
 pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>) -> Result<(), ContractError> {
@@ -73,4 +79,69 @@ pub fn get_all_tasks(env: &Env) -> Vec<u64> {
         .instance()
         .get(&DataKey::AllTasks)
         .unwrap_or(Vec::new(env))
+}
+
+/// Purge a terminal task (done or cancelled) from contract storage.
+///
+/// Removes:
+/// - `ActiveTask(task_id)` — the live task entry
+/// - `ArchivedTask(task_id)` — the archived copy, if one exists
+/// - `TaskVoters(task_id)` — the per-task voter list
+/// - `Voted(task_id, voter)` — each individual vote record
+/// - The task_id entry in the `AllTasks` index
+///
+/// Reverts with `TaskNotFound` when no active or archived task exists for the
+/// given id. Reverts with `TaskNotTerminal` when the task is still active
+/// (neither done nor cancelled).
+///
+/// Admin authentication is required.
+pub fn purge_task(env: &Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
+    admin.require_auth();
+
+    // Resolve from active storage first, then fall back to archived.
+    let task = storage::get_active_task(env, task_id)
+        .or_else(|| storage::get_archived_task(env, task_id))
+        .ok_or(ContractError::TaskNotFound)?;
+
+    // Gate: only terminal tasks may be purged.
+    if !is_terminal(&task) {
+        return Err(ContractError::TaskNotTerminal);
+    }
+
+    // 1. Remove per-voter Voted records then the voters list itself.
+    let voters = storage::get_task_voters(env, task_id);
+    for voter in voters.iter() {
+        env.storage()
+            .instance()
+            .remove(&DataKey::Voted(task_id, voter.clone()));
+    }
+    env.storage()
+        .instance()
+        .remove(&DataKey::TaskVoters(task_id));
+
+    // 2. Remove the task entry from whichever storage slot holds it.
+    env.storage()
+        .instance()
+        .remove(&DataKey::ActiveTask(task_id));
+    env.storage()
+        .instance()
+        .remove(&DataKey::ArchivedTask(task_id));
+
+    // 3. Remove task_id from the AllTasks index.
+    let all_tasks: Vec<u64> = env
+        .storage()
+        .instance()
+        .get(&DataKey::AllTasks)
+        .unwrap_or(Vec::new(env));
+    let mut updated = Vec::new(env);
+    for id in all_tasks.iter() {
+        if id != task_id {
+            updated.push_back(id);
+        }
+    }
+    env.storage().instance().set(&DataKey::AllTasks, &updated);
+
+    events::emit_task_purged(env, task_id);
+
+    Ok(())
 }
