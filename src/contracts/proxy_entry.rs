@@ -2,7 +2,7 @@ use crate::contracts::logic;
 use crate::types::{BatchCall, ContractError, DataKey, RewardStream, Snapshot};
 use crate::DEFAULT_WEIGHT_THRESHOLD;
 use crate::{circuit_breaker, drips, events, guardian, reputation, storage, task};
-use soroban_sdk::{contract, contractimpl, Address, Env};
+use soroban_sdk::{contract, contractimpl, Address, Env, Vec};
 
 #[contract]
 pub struct VeroContract;
@@ -188,6 +188,14 @@ impl VeroContract {
 
     pub fn vote(env: Env, guardian: Address, task_id: u64) -> Result<(), ContractError> {
         logic::process_vote(&env, guardian, task_id)
+    }
+
+    pub fn vote_batch(
+        env: Env,
+        guardian: Address,
+        task_ids: Vec<u64>,
+    ) -> Result<(), ContractError> {
+        logic::process_vote_batch(&env, guardian, task_ids)
     }
 
     pub fn get_task(env: Env, task_id: u64) -> Option<crate::types::Task> {

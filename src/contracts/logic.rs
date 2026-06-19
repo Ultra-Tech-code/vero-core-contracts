@@ -4,7 +4,7 @@ use crate::{
     circuit_breaker, drips, events, guardian, reentrancy, reputation, storage, task, timelock,
     vault,
 };
-use soroban_sdk::{Address, Env, Map};
+use soroban_sdk::{Address, Env, Map, Vec};
 
 pub(crate) fn lock_tokens(env: &Env, guardian: Address, amount: i128) -> Result<(), ContractError> {
     guardian.require_auth();
@@ -182,6 +182,127 @@ pub(crate) fn process_vote(
     storage::set_active_task(env, &t);
 
     events::emit_weighted_vote(env, task_id, &guardian, weight);
+
+    reentrancy::unlock(env);
+    Ok(())
+}
+
+/// Core vote logic without authentication or reentrancy management.
+/// Performs per-task validation and state mutation.
+/// The caller must hold the reentrancy lock and have verified guardian-level checks.
+pub(crate) fn vote_inner(
+    env: &Env,
+    guardian: &Address,
+    task_id: u64,
+    weight: u64,
+) -> Result<(), ContractError> {
+    let voted_key = DataKey::Voted(task_id, guardian.clone());
+    if env.storage().instance().has(&voted_key) {
+        return Err(ContractError::DuplicateVote);
+    }
+
+    let mut t = match storage::get_active_task(env, task_id) {
+        Some(t) => t,
+        None => return Err(ContractError::TaskNotFound),
+    };
+
+    if t.is_cancelled {
+        return Err(ContractError::TaskCancelled);
+    }
+
+    t.total_weight_accrued = match t.total_weight_accrued.checked_add(weight) {
+        Some(v) => v,
+        None => return Err(ContractError::WeightOverflow),
+    };
+    t.votes += 1;
+
+    let weight_threshold: u64 = env
+        .storage()
+        .instance()
+        .get(&DataKey::WeightThreshold)
+        .unwrap_or(DEFAULT_WEIGHT_THRESHOLD);
+
+    if t.total_weight_accrued >= weight_threshold && !t.is_done {
+        t.is_done = true;
+        t.resolved_at = env.ledger().timestamp();
+        events::emit_task_resolved(env, task_id, t.total_weight_accrued);
+
+        if let Some(vault_addr) = env
+            .storage()
+            .instance()
+            .get::<_, Address>(&DataKey::VaultAddress)
+        {
+            let vault_client = vault::VaultClient::new(env, &vault_addr);
+            vault_client.release_funds(&task_id);
+        }
+    }
+
+    env.storage().instance().set(&voted_key, &true);
+    storage::append_task_voter(env, task_id, guardian);
+    storage::set_active_task(env, &t);
+
+    events::emit_weighted_vote(env, task_id, guardian, weight);
+
+    Ok(())
+}
+
+/// Vote on multiple tasks in a single atomic transaction.
+/// Guardian-level checks (auth, guardian status, balance, reputation) are
+/// performed once. Per-task validation and state mutation uses `vote_inner`.
+/// If any task is invalid the entire batch is reverted (Soroban transactional
+/// semantics ensure atomicity).
+pub(crate) fn process_vote_batch(
+    env: &Env,
+    guardian: Address,
+    task_ids: Vec<u64>,
+) -> Result<(), ContractError> {
+    circuit_breaker::require_not_paused(env)?;
+    guardian.require_auth();
+    reentrancy::lock(env)?;
+
+    if !guardian::is_guardian(env, &guardian) {
+        reentrancy::unlock(env);
+        return Err(ContractError::NotAuthorized);
+    }
+
+    let token_key = DataKey::TokenAddress;
+    if !env.storage().instance().has(&token_key) {
+        reentrancy::unlock(env);
+        return Err(ContractError::NotInitialized);
+    }
+
+    let threshold: i128 = env
+        .storage()
+        .instance()
+        .get(&DataKey::LockThreshold)
+        .unwrap_or(0);
+    let balance_key = DataKey::LockedBalance(guardian.clone());
+    let locked_balance: i128 = env.storage().instance().get(&balance_key).unwrap_or(0);
+
+    if locked_balance <= threshold {
+        reentrancy::unlock(env);
+        return Err(ContractError::InsufficientLockedBalance);
+    }
+
+    let weight = match reputation::get_rep(env, &guardian) {
+        Ok(w) => w,
+        Err(e) => {
+            reentrancy::unlock(env);
+            return Err(e);
+        }
+    };
+
+    if weight == 0 {
+        reentrancy::unlock(env);
+        return Err(ContractError::ZeroWeightVote);
+    }
+
+    for task_id in task_ids.iter() {
+        if let Err(e) = vote_inner(env, &guardian, task_id, weight) {
+            reentrancy::unlock(env);
+            return Err(e);
+        }
+    }
 
     reentrancy::unlock(env);
     Ok(())
