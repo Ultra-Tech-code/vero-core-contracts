@@ -7,6 +7,7 @@ use crate::{
 use soroban_sdk::{Address, Env, Map, Vec};
 
 pub(crate) fn lock_tokens(env: &Env, guardian: Address, amount: i128) -> Result<(), ContractError> {
+    circuit_breaker::require_not_paused(env)?;
     guardian.require_auth();
     let token: Address = env
         .storage()
@@ -22,12 +23,14 @@ pub(crate) fn lock_tokens(env: &Env, guardian: Address, amount: i128) -> Result<
 }
 
 pub(crate) fn request_unlock(env: &Env, guardian: Address) -> Result<(), ContractError> {
+    circuit_breaker::require_not_paused(env)?;
     guardian.require_auth();
     timelock::initiate_withdrawal(env, guardian);
     Ok(())
 }
 
 pub(crate) fn unlock_tokens(env: &Env, guardian: Address) -> Result<(), ContractError> {
+    circuit_breaker::require_not_paused(env)?;
     guardian.require_auth();
     if guardian::is_guardian(env, &guardian) {
         return Err(ContractError::StillGuardian);
@@ -55,6 +58,7 @@ pub(crate) fn unlock_tokens(env: &Env, guardian: Address) -> Result<(), Contract
 }
 
 pub(crate) fn resign_guardian(env: &Env, guardian: Address) -> Result<(), ContractError> {
+    circuit_breaker::require_not_paused(env)?;
     guardian.require_auth();
     if !guardian::is_guardian(env, &guardian) {
         return Err(ContractError::NotGuardian);
