@@ -63,3 +63,87 @@ pub fn emit_task_purged(env: &Env, task_id: u64) {
     env.events()
         .publish((symbol_short!("purged"),), task_id);
 }
+
+pub fn emit_contract_initialized(env: &Env, admin: &Address) {
+    env.events()
+        .publish((symbol_short!("inited"),), (admin.clone(),));
+}
+
+pub fn emit_guardian_added(env: &Env, admin: &Address, guardian: &Address) {
+    env.events().publish(
+        (symbol_short!("gd_add"),),
+        (admin.clone(), guardian.clone()),
+    );
+}
+
+pub fn emit_guardian_removed(env: &Env, admin: &Address, guardian: &Address) {
+    env.events().publish(
+        (symbol_short!("gd_rm"),),
+        (admin.clone(), guardian.clone()),
+    );
+}
+
+pub fn emit_reputation_set(env: &Env, admin: &Address, guardian: &Address, score: u64) {
+    env.events().publish(
+        (symbol_short!("rep_set"),),
+        (admin.clone(), guardian.clone(), score),
+    );
+}
+
+pub fn emit_tokens_locked(env: &Env, guardian: &Address, amount: i128) {
+    env.events()
+        .publish((symbol_short!("tk_lock"),), (guardian.clone(), amount));
+}
+
+pub fn emit_timelock_started(env: &Env, guardian: &Address) {
+    env.events()
+        .publish((symbol_short!("tm_start"),), (guardian.clone(),));
+}
+
+pub fn emit_tokens_unlocked(env: &Env, guardian: &Address, amount: i128) {
+    env.events()
+        .publish((symbol_short!("tk_unlk"),), (guardian.clone(), amount));
+}
+
+pub fn emit_guardian_resigned(env: &Env, guardian: &Address) {
+    env.events()
+        .publish((symbol_short!("gd_res"),), (guardian.clone(),));
+}
+
+pub fn emit_threshold_set(env: &Env, admin: &Address, threshold: u64) {
+    env.events().publish(
+        (symbol_short!("th_set"),),
+        (admin.clone(), threshold),
+    );
+}
+
+pub fn emit_vault_set(env: &Env, admin: &Address, vault: &Address) {
+    env.events().publish(
+        (symbol_short!("vault"),),
+        (admin.clone(), vault.clone()),
+    );
+}
+
+pub fn emit_task_registered(env: &Env, admin: &Address, task_id: u64) {
+    env.events().publish(
+        (symbol_short!("reg"),),
+        (admin.clone(), task_id),
+    );
+}
+
+pub fn emit_task_archived(env: &Env, task_id: u64) {
+    env.events()
+        .publish((symbol_short!("archived"),), task_id);
+}
+
+pub fn emit_circuit_breaker_reset(env: &Env, admin: &Address) {
+    env.events()
+        .publish((symbol_short!("cb_rst"),), (admin.clone(),));
+}
+
+pub fn emit_contract_upgraded(env: &Env, admin: &Address, wasm_hash: &soroban_sdk::BytesN<32>) {
+    env.events().publish(
+        (symbol_short!("upgraded"),),
+        (admin.clone(), wasm_hash.clone()),
+    );
+}

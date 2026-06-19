@@ -31,6 +31,7 @@ impl VeroContract {
             .set(&DataKey::LockThreshold, &lock_threshold);
         env.storage().instance().set(&DataKey::Paused, &false);
         env.storage().instance().extend_ttl(100_000, 100_000);
+        events::emit_contract_initialized(&env, &admin);
         Ok(())
     }
 
@@ -45,19 +46,23 @@ impl VeroContract {
             .instance()
             .get(&DataKey::Paused)
             .unwrap_or(false);
-        env.storage().instance().set(&DataKey::Paused, &!current);
+        let new_paused = !current;
+        env.storage().instance().set(&DataKey::Paused, &new_paused);
+        events::emit_pause_toggled(&env, new_paused);
         Ok(())
     }
 
     pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
         admin.require_auth();
         env.storage().instance().set(&DataKey::Paused, &true);
+        events::emit_pause_toggled(&env, true);
         Ok(())
     }
 
     pub fn unpause(env: Env, admin: Address) -> Result<(), ContractError> {
         admin.require_auth();
         env.storage().instance().set(&DataKey::Paused, &false);
+        events::emit_pause_toggled(&env, false);
         Ok(())
     }
 
@@ -70,7 +75,8 @@ impl VeroContract {
 
     pub fn add_guardian(env: Env, admin: Address, guardian: Address) -> Result<(), ContractError> {
         circuit_breaker::require_not_paused(&env)?;
-        guardian::add_guardian(&env, admin, guardian);
+        guardian::add_guardian(&env, admin.clone(), guardian.clone());
+        events::emit_guardian_added(&env, &admin, &guardian);
         Ok(())
     }
 
@@ -80,7 +86,8 @@ impl VeroContract {
         guardian: Address,
     ) -> Result<(), ContractError> {
         circuit_breaker::require_not_paused(&env)?;
-        guardian::remove_guardian(&env, admin, guardian);
+        guardian::remove_guardian(&env, admin.clone(), guardian.clone());
+        events::emit_guardian_removed(&env, &admin, &guardian);
         Ok(())
     }
 
@@ -95,7 +102,8 @@ impl VeroContract {
         score: u64,
     ) -> Result<(), ContractError> {
         circuit_breaker::require_not_paused(&env)?;
-        reputation::set_reputation(&env, admin, guardian, score);
+        reputation::set_reputation(&env, admin.clone(), guardian.clone(), score);
+        events::emit_reputation_set(&env, &admin, &guardian, score);
         Ok(())
     }
 
@@ -132,6 +140,7 @@ impl VeroContract {
         env.storage()
             .instance()
             .set(&DataKey::WeightThreshold, &threshold);
+        events::emit_threshold_set(&env, &admin, threshold);
         Ok(())
     }
 
@@ -145,6 +154,7 @@ impl VeroContract {
     pub fn set_vault_address(env: Env, admin: Address, vault: Address) {
         admin.require_auth();
         env.storage().instance().set(&DataKey::VaultAddress, &vault);
+        events::emit_vault_set(&env, &admin, &vault);
     }
 
     pub fn register_task(env: Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
@@ -203,7 +213,9 @@ impl VeroContract {
     }
 
     pub fn archive_task(env: Env, task_id: u64) -> Result<(), ContractError> {
-        storage::archive_task(&env, task_id)
+        storage::archive_task(&env, task_id)?;
+        events::emit_task_archived(&env, task_id);
+        Ok(())
     }
 
     pub fn get_archived_task(env: Env, task_id: u64) -> Option<crate::types::Task> {
@@ -239,7 +251,9 @@ impl VeroContract {
     }
 
     pub fn reset_circuit_breaker(env: Env, admin: Address) {
-        circuit_breaker::reset(&env, admin);
+        if circuit_breaker::reset(&env, admin.clone()).is_ok() {
+            events::emit_circuit_breaker_reset(&env, &admin);
+        }
     }
 
     pub fn get_estimated_cost(_env: Env, op: crate::types::Operation) -> u64 {
@@ -248,7 +262,8 @@ impl VeroContract {
 
     pub fn upgrade_contract(env: Env, admin: Address, new_wasm_hash: soroban_sdk::BytesN<32>) {
         admin.require_auth();
-        env.deployer().update_current_contract_wasm(new_wasm_hash);
+        env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
+        events::emit_contract_upgraded(&env, &admin, &new_wasm_hash);
     }
 
     pub fn get_snapshot(env: Env) -> Snapshot {
