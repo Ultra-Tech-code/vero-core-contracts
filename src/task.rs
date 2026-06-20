@@ -62,6 +62,8 @@ pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>) -> Result<(
             is_cancelled: false,
         };
         storage::set_active_task(env, &task);
+        all_tasks.push_back(task_id);
+        events::emit_task_registered(env, &admin, task_id);
     }
 
     env.storage()

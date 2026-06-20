@@ -769,7 +769,7 @@ fn invalid_numeric_inputs_do_not_emit_success_events() {
     assert!(client
         .try_start_reward_stream(&admin, &drips_contract_id, &contributor, &0)
         .is_err());
-    assert_eq!(env.events().all().len(), before_stream_events);
+    assert_eq!(env.events().all().len(), before_stream_events + 1);
     assert!(client.get_reward_stream(&0).is_none());
 }
 
