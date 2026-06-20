@@ -63,3 +63,32 @@ pub fn emit_task_purged(env: &Env, task_id: u64) {
     env.events()
         .publish((symbol_short!("purged"),), task_id);
 }
+
+pub fn emit_upgrade_signers_set(env: &Env, signers_count: u32, threshold: u32) {
+    env.events().publish(
+        (symbol_short!("up_sig"),),
+        (signers_count, threshold),
+    );
+}
+
+pub fn emit_upgrade_proposed(env: &Env, signer: &Address) {
+    env.events()
+        .publish((symbol_short!("up_prop"),), (signer.clone(),));
+}
+
+pub fn emit_upgrade_approved(env: &Env, signer: &Address, approvals: u32, threshold: u32) {
+    env.events().publish(
+        (symbol_short!("up_app"),),
+        (signer.clone(), approvals, threshold),
+    );
+}
+
+pub fn emit_upgrade_executed(env: &Env) {
+    env.events()
+        .publish((symbol_short!("up_exec"),), ());
+}
+
+pub fn emit_upgrade_cancelled(env: &Env) {
+    env.events()
+        .publish((symbol_short!("up_cncl"),), ());
+}

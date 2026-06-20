@@ -29,4 +29,12 @@ pub enum DataKey {
     ArchivedTask(u64),
     Initialized,
     WithdrawalTimelock(Address),
+    /// Stores `Vec<Address>` of authorized multi-sig upgrade signers.
+    UpgradeSigners,
+    /// Stores `u32` — minimum number of approvals required.
+    UpgradeThreshold,
+    /// Stores `soroban_sdk::BytesN<32>` — the proposed WASM hash for upgrade.
+    PendingUpgradeWasm,
+    /// Stores `Vec<Address>` — signers who have approved the pending upgrade.
+    PendingUpgradeApprovals,
 }

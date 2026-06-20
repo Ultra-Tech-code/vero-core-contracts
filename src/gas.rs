@@ -99,6 +99,26 @@ pub const COST_PURGE_TASK: u64 = 2_030_000;
 ///   ~ `500_000 + 50_000 + 250_000 + 300_000 + 5*1_080_000`
 pub const COST_VOTE_BATCH: u64 = 6_500_000;
 
+/// `set_upgrade_signers`: base + write (UpgradeSigners) + write (UpgradeThreshold).
+/// `500_000 + 150_000 + 150_000`
+pub const COST_SET_UPGRADE_SIGNERS: u64 = 800_000;
+
+/// `propose_upgrade`: base + signer check read + pending check read + write (PendingUpgradeWasm) + write (PendingUpgradeApprovals) + event.
+/// `500_000 + 50_000 + 50_000 + 150_000 + 150_000 + 30_000`
+pub const COST_PROPOSE_UPGRADE: u64 = 930_000;
+
+/// `approve_upgrade`: base + signer check read + pending check read + duplicate check + write (PendingUpgradeApprovals) + event.
+/// `500_000 + 50_000 + 50_000 + 50_000 + 150_000 + 30_000`
+pub const COST_APPROVE_UPGRADE: u64 = 830_000;
+
+/// `execute_upgrade`: base + threshold read + approvals read + signers read + deployer call (costly) + cleanup writes + event.
+/// `500_000 + 50_000 + 50_000 + 50_000 + 2_000_000 + 2*150_000 + 30_000`
+pub const COST_EXECUTE_UPGRADE: u64 = 2_980_000;
+
+/// `cancel_upgrade`: base + admin auth + 3 removes + event.
+/// `500_000 + 3*150_000 + 30_000`
+pub const COST_CANCEL_UPGRADE: u64 = 980_000;
+
 // ─── Public mapping function ───────────────────────────────────────────────────
 
 /// Returns the estimated instruction-unit cost for a given [`Operation`].
@@ -132,5 +152,10 @@ pub fn get_estimated_cost(op: Operation) -> u64 {
         Operation::RecordSnapshot      => COST_RECORD_SNAPSHOT,
         Operation::PurgeTask           => COST_PURGE_TASK,
         Operation::VoteBatch           => COST_VOTE_BATCH,
+        Operation::SetUpgradeSigners   => COST_SET_UPGRADE_SIGNERS,
+        Operation::ProposeUpgrade      => COST_PROPOSE_UPGRADE,
+        Operation::ApproveUpgrade      => COST_APPROVE_UPGRADE,
+        Operation::ExecuteUpgrade      => COST_EXECUTE_UPGRADE,
+        Operation::CancelUpgrade       => COST_CANCEL_UPGRADE,
     }
 }
