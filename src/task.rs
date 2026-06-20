@@ -45,6 +45,7 @@ pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>) -> Result<(
         .unwrap_or(Vec::new(env));
 
     for task_id in task_ids.into_iter() {
+    for task_id in task_ids.iter() {
         if storage::get_active_task(env, task_id).is_some() {
             reentrancy::unlock(env);
             return Err(ContractError::NotAuthorized);

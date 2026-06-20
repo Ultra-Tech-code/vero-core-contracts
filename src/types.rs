@@ -50,6 +50,32 @@ pub struct Snapshot {
     pub reward_streams: Map<u64, RewardStream>,
 }
 
+pub use crate::contracts::storage_layout::DataKey;
+
+/// A single call within a `batch_execute` transaction.
+#[contracttype]
+#[derive(Clone)]
+pub enum BatchCall {
+    RegisterTask(Address, u64),
+    CancelTask(Address, u64),
+    Vote(Address, u64),
+    AddGuardian(Address, Address),
+    RemoveGuardian(Address, Address),
+    SetReputation(Address, Address, u64),
+    LockTokens(Address, i128),
+    RequestUnlock(Address),
+    UnlockTokens(Address),
+    ResignGuardian(Address),
+    SetWeightThreshold(Address, u64),
+    SetVaultAddress(Address, Address),
+    StartRewardStream(Address, Address, Address, u64),
+    TogglePause(Address),
+    Pause(Address),
+    Unpause(Address),
+    RecordFailure(Address),
+    ResetCircuitBreaker(Address),
+}
+
 /// Every public write operation exposed by VeroContract.
 #[contracttype]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -69,6 +95,8 @@ pub enum Operation {
     UpgradeContract = 12,
     RecordSnapshot = 13,
     PurgeTask = 14,
+    /// `vote_batch` — vote on multiple tasks in one transaction.
+    VoteBatch = 15,
 }
 
 /// Batch call variants for the `batch_execute` entry point.
@@ -126,5 +154,10 @@ pub enum ContractError {
     SnapshotNotFound = 26,
     WithdrawalTimelockActive = 27,
     TaskNotTerminal = 28,
+    InsufficientReputation = 29,
+}
+    /// Task is still active (not done and not cancelled) and cannot be purged.
+    TaskNotTerminal = 28,
+    /// Guardian's reputation score is below the minimum threshold to vote.
     InsufficientReputation = 29,
 }
