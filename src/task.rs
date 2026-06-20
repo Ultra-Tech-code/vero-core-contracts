@@ -41,9 +41,10 @@ pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>) -> Result<(
     let mut all_tasks: Vec<u64> = env
         .storage()
         .instance()
-        .get(&crate::types::DataKey::AllTasks)
+        .get(&DataKey::AllTasks)
         .unwrap_or(Vec::new(env));
 
+    for task_id in task_ids.into_iter() {
     for task_id in task_ids.iter() {
         if storage::get_active_task(env, task_id).is_some() {
             reentrancy::unlock(env);
@@ -62,6 +63,7 @@ pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>) -> Result<(
         };
         storage::set_active_task(env, &task);
         all_tasks.push_back(task_id);
+        events::emit_task_registered(env, &admin, task_id);
     }
 
     env.storage()
@@ -95,7 +97,7 @@ pub fn get_task(env: &Env, task_id: u64) -> Option<Task> {
 pub fn get_all_tasks(env: &Env) -> Vec<u64> {
     env.storage()
         .instance()
-        .get(&crate::types::DataKey::AllTasks)
+        .get(&DataKey::AllTasks)
         .unwrap_or(Vec::new(env))
 }
 

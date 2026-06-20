@@ -19,13 +19,15 @@ pub(crate) fn lock_tokens(env: &Env, guardian: Address, amount: i128) -> Result<
     let key = DataKey::LockedBalance(guardian.clone());
     let prev: i128 = env.storage().instance().get(&key).unwrap_or(0);
     env.storage().instance().set(&key, &(prev + amount));
+    events::emit_tokens_locked(env, &guardian, amount);
     Ok(())
 }
 
 pub(crate) fn request_unlock(env: &Env, guardian: Address) -> Result<(), ContractError> {
     circuit_breaker::require_not_paused(env)?;
     guardian.require_auth();
-    timelock::initiate_withdrawal(env, guardian);
+    timelock::initiate_withdrawal(env, guardian.clone());
+    events::emit_timelock_started(env, &guardian);
     Ok(())
 }
 
@@ -54,6 +56,7 @@ pub(crate) fn unlock_tokens(env: &Env, guardian: Address) -> Result<(), Contract
 
     // Clear the timelock after successful withdrawal
     timelock::clear_timelock(env, &guardian);
+    events::emit_tokens_unlocked(env, &guardian, amount);
     Ok(())
 }
 
@@ -84,6 +87,7 @@ pub(crate) fn resign_guardian(env: &Env, guardian: Address) -> Result<(), Contra
 
     // Clear the timelock after successful resignation
     timelock::clear_timelock(env, &guardian);
+    events::emit_guardian_resigned(env, &guardian);
     Ok(())
 }
 

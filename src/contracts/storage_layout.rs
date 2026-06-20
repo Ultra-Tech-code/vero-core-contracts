@@ -1,5 +1,10 @@
 use soroban_sdk::{contracttype, Address};
 
+/// Canonical storage key definitions for the Vero contract.
+///
+/// All contract state is stored under these typed keys in instance storage.
+/// This is the single source of truth for `DataKey` — `crate::types` re-exports
+/// it via `pub use crate::contracts::storage_layout::DataKey`.
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
@@ -29,12 +34,4 @@ pub enum DataKey {
     ArchivedTask(u64),
     Initialized,
     WithdrawalTimelock(Address),
-    /// Stores `Vec<Address>` of authorized multi-sig upgrade signers.
-    UpgradeSigners,
-    /// Stores `u32` — minimum number of approvals required.
-    UpgradeThreshold,
-    /// Stores `soroban_sdk::BytesN<32>` — the proposed WASM hash for upgrade.
-    PendingUpgradeWasm,
-    /// Stores `Vec<Address>` — signers who have approved the pending upgrade.
-    PendingUpgradeApprovals,
 }
