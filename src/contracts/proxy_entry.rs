@@ -2,7 +2,7 @@ use crate::contracts::logic;
 use crate::types::{BatchCall, ContractError, DataKey, RewardStream, Snapshot};
 use crate::DEFAULT_WEIGHT_THRESHOLD;
 use crate::{circuit_breaker, drips, events, guardian, reputation, storage, task};
-use soroban_sdk::{contract, contractimpl, Address, Env, Vec};
+use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, Vec};
 
 #[contract]
 pub struct VeroContract;
@@ -260,10 +260,273 @@ impl VeroContract {
         crate::gas::get_estimated_cost(op)
     }
 
-    pub fn upgrade_contract(env: Env, admin: Address, new_wasm_hash: soroban_sdk::BytesN<32>) {
+    pub fn upgrade_contract(env: Env, admin: Address, new_wasm_hash: BytesN<32>) {
         admin.require_auth();
         env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
         events::emit_contract_upgraded(&env, &admin, &new_wasm_hash);
+    }
+
+    // ─── Multi-sig upgrade management ────────────────────────────────────────
+
+    /// Configure the list of authorized upgrade signers and the required quorum.
+    ///
+    /// Only the contract admin may call this function. It overwrites any previous
+    /// multi-sig configuration and clears any pending upgrade proposal.
+    ///
+    /// # Arguments
+    /// * `signers`   — List of addresses authorized to propose/approve upgrades.
+    /// * `threshold` — Minimum number of approvals required to execute an upgrade.
+    ///
+    /// # Errors
+    /// * `NotAuthorized` — Caller is not the contract admin.
+    /// * `InvalidUpgradeConfig` — Threshold is zero or exceeds the number of signers.
+    pub fn set_upgrade_signers(
+        env: Env,
+        admin: Address,
+        signers: Vec<Address>,
+        threshold: u32,
+    ) -> Result<(), ContractError> {
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::NotInitialized)?;
+        if admin != stored_admin {
+            return Err(ContractError::NotAuthorized);
+        }
+        admin.require_auth();
+
+        if threshold == 0 || threshold > signers.len() {
+            return Err(ContractError::InvalidUpgradeConfig);
+        }
+
+        // Clear any pending upgrade when reconfiguring
+        env.storage().instance().remove(&DataKey::PendingUpgradeWasm);
+        env.storage()
+            .instance()
+            .remove(&DataKey::PendingUpgradeApprovals);
+
+        env.storage()
+            .instance()
+            .set(&DataKey::UpgradeSigners, &signers);
+        env.storage()
+            .instance()
+            .set(&DataKey::UpgradeThreshold, &threshold);
+
+        events::emit_upgrade_signers_set(&env, signers.len(), threshold);
+        Ok(())
+    }
+
+    /// Returns the currently configured list of authorized upgrade signers.
+    pub fn get_upgrade_signers(env: Env) -> Vec<Address> {
+        env.storage()
+            .instance()
+            .get(&DataKey::UpgradeSigners)
+            .unwrap_or(Vec::new(&env))
+    }
+
+    /// Returns the minimum number of upgrade approvals required (quorum).
+    pub fn get_upgrade_threshold(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&DataKey::UpgradeThreshold)
+            .unwrap_or(0u32)
+    }
+
+    /// Propose a new upgrade WASM hash as an upgrade signer.
+    ///
+    /// If no pending upgrade exists, creates one and records the caller's
+    /// approval. The caller is added to the approvals list.
+    ///
+    /// If a pending upgrade exists with a **different** WASM hash, the call
+    /// reverts. If the hash matches, the caller is added to the approval list
+    /// (same effect as calling `approve_upgrade`).
+    ///
+    /// # Errors
+    /// * `NotUpgradeSigner` — Caller is not in the authorized signers list.
+    /// * `NoPendingUpgrade` — (not applicable; propose creates one).
+    /// * `AlreadyApproved` — Caller has already approved.
+    pub fn propose_upgrade(
+        env: Env,
+        signer: Address,
+        new_wasm_hash: BytesN<32>,
+    ) -> Result<(), ContractError> {
+        signer.require_auth();
+
+        // Verify signer is authorized
+        let signers: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&DataKey::UpgradeSigners)
+            .ok_or(ContractError::NotUpgradeSigner)?;
+        if !signers.contains(signer.clone()) {
+            return Err(ContractError::NotUpgradeSigner);
+        }
+
+        // Check if there's an existing pending upgrade
+        if let Some(existing_hash) = env
+            .storage()
+            .instance()
+            .get::<_, BytesN<32>>(&DataKey::PendingUpgradeWasm)
+        {
+            // If hashes differ, reject
+            if existing_hash != new_wasm_hash {
+                return Err(ContractError::InvalidUpgradeConfig);
+            }
+            // Hash matches — just add approval (same as approve_upgrade)
+            return Self::approve_upgrade(env, signer);
+        }
+
+        // No pending upgrade — create one
+        env.storage()
+            .instance()
+            .set(&DataKey::PendingUpgradeWasm, &new_wasm_hash);
+
+        // Record the first approval
+        let mut approvals: Vec<Address> = Vec::new(&env);
+        approvals.push_back(signer.clone());
+        env.storage()
+            .instance()
+            .set(&DataKey::PendingUpgradeApprovals, &approvals);
+
+        events::emit_upgrade_proposed(&env, &signer);
+
+        let threshold: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::UpgradeThreshold)
+            .unwrap_or(0u32);
+        events::emit_upgrade_approved(&env, &signer, approvals.len() as u32, threshold);
+
+        Ok(())
+    }
+
+    /// Approve a pending upgrade as an authorized signer.
+    ///
+    /// A pending upgrade must exist. If the caller has already approved,
+    /// the call reverts with `AlreadyApproved`.
+    ///
+    /// # Errors
+    /// * `NotUpgradeSigner` — Caller is not in the authorized signers list.
+    /// * `NoPendingUpgrade` — No upgrade has been proposed.
+    /// * `AlreadyApproved` — Caller has already approved this proposal.
+    pub fn approve_upgrade(env: Env, signer: Address) -> Result<(), ContractError> {
+        signer.require_auth();
+
+        // Verify signer is authorized
+        let signers: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&DataKey::UpgradeSigners)
+            .ok_or(ContractError::NotUpgradeSigner)?;
+        if !signers.contains(signer.clone()) {
+            return Err(ContractError::NotUpgradeSigner);
+        }
+
+        // Verify there is a pending upgrade
+        if !env.storage().instance().has(&DataKey::PendingUpgradeWasm) {
+            return Err(ContractError::NoPendingUpgrade);
+        }
+
+        // Verify caller hasn't already approved
+        let mut approvals: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&DataKey::PendingUpgradeApprovals)
+            .unwrap_or(Vec::new(&env));
+
+        if approvals.contains(signer.clone()) {
+            return Err(ContractError::AlreadyApproved);
+        }
+
+        approvals.push_back(signer.clone());
+        env.storage()
+            .instance()
+            .set(&DataKey::PendingUpgradeApprovals, &approvals);
+
+        let threshold: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::UpgradeThreshold)
+            .unwrap_or(0u32);
+        events::emit_upgrade_approved(&env, &signer, approvals.len() as u32, threshold);
+
+        Ok(())
+    }
+
+    /// Execute the pending upgrade once the approval quorum is met.
+    ///
+    /// # Errors
+    /// * `NoPendingUpgrade` — No upgrade has been proposed.
+    /// * `UpgradeThresholdNotMet` — Not enough approvals yet.
+    pub fn execute_upgrade(env: Env) -> Result<(), ContractError> {
+        // Check pending proposal exists
+        let wasm_hash: BytesN<32> = env
+            .storage()
+            .instance()
+            .get(&DataKey::PendingUpgradeWasm)
+            .ok_or(ContractError::NoPendingUpgrade)?;
+
+        let approvals: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&DataKey::PendingUpgradeApprovals)
+            .ok_or(ContractError::NoPendingUpgrade)?;
+
+        let threshold: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::UpgradeThreshold)
+            .ok_or(ContractError::InvalidUpgradeConfig)?;
+
+        if approvals.len() < threshold {
+            return Err(ContractError::UpgradeThresholdNotMet);
+        }
+
+        // Clean up pending state BEFORE upgrade (after upgrade the contract
+        // code is replaced and further cleanup may not run).
+        env.storage().instance().remove(&DataKey::PendingUpgradeWasm);
+        env.storage()
+            .instance()
+            .remove(&DataKey::PendingUpgradeApprovals);
+
+        events::emit_upgrade_executed(&env);
+
+        // Perform the actual WASM upgrade
+        env.deployer().update_current_contract_wasm(wasm_hash);
+
+        Ok(())
+    }
+
+    /// Cancel a pending upgrade. Only the contract admin may call this.
+    ///
+    /// # Errors
+    /// * `NotAuthorized` — Caller is not the contract admin.
+    /// * `NoPendingUpgrade` — No upgrade has been proposed.
+    pub fn cancel_upgrade(env: Env, admin: Address) -> Result<(), ContractError> {
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::NotInitialized)?;
+        if admin != stored_admin {
+            return Err(ContractError::NotAuthorized);
+        }
+        admin.require_auth();
+
+        if !env.storage().instance().has(&DataKey::PendingUpgradeWasm) {
+            return Err(ContractError::NoPendingUpgrade);
+        }
+
+        env.storage()
+            .instance()
+            .remove(&DataKey::PendingUpgradeWasm);
+        env.storage()
+            .instance()
+            .remove(&DataKey::PendingUpgradeApprovals);
+
+        events::emit_upgrade_cancelled(&env);
+        Ok(())
     }
 
     pub fn get_snapshot(env: Env) -> Snapshot {
@@ -329,6 +592,21 @@ impl VeroContract {
                 }
                 BatchCall::SetVaultAddress(admin, vault) => {
                     Self::set_vault_address(env.clone(), admin, vault)
+                }
+                BatchCall::SetUpgradeSigners(admin, signers, threshold) => {
+                    Self::set_upgrade_signers(env.clone(), admin, signers, threshold)?
+                }
+                BatchCall::ProposeUpgrade(signer, hash) => {
+                    Self::propose_upgrade(env.clone(), signer, hash)?
+                }
+                BatchCall::ApproveUpgrade(signer) => {
+                    Self::approve_upgrade(env.clone(), signer)?
+                }
+                BatchCall::ExecuteUpgrade(_signer) => {
+                    Self::execute_upgrade(env.clone())?
+                }
+                BatchCall::CancelUpgrade(admin) => {
+                    Self::cancel_upgrade(env.clone(), admin)?
                 }
                 BatchCall::StartRewardStream(admin, drips, contributor, task_id) => {
                     Self::start_reward_stream(env.clone(), admin, drips, contributor, task_id)?
