@@ -3,6 +3,7 @@
 mod contracts;
 
 mod circuit_breaker;
+mod guards;
 #[cfg(any(feature = "verification", test))]
 pub mod consensus;
 mod drips;
