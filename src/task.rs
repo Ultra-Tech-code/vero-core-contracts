@@ -27,7 +27,5 @@ pub fn register_task(env: &Env, admin: Address, task_id: u64) -> Result<(), Cont
 }
 
 pub fn get_task(env: &Env, task_id: u64) -> Option<Task> {
-    env.storage()
-        .instance()
-        .get(&DataKey::Task(task_id))
+    env.storage().instance().get(&DataKey::Task(task_id))
 }

@@ -2,21 +2,21 @@
 
 mod circuit_breaker;
 mod drips;
+pub mod events;
 mod guardian;
+mod migrate;
 mod reentrancy;
 mod reputation;
 mod task;
 mod types;
 mod vault;
-mod reentrancy;
-pub mod events;
 
 use soroban_sdk::{contract, contractimpl, Address, Env};
 use types::{ContractError, DataKey, RewardStream};
 
+pub use drips::{get_reward_stream, start_drips_stream};
 pub use guardian::{add_guardian, is_guardian};
 pub use task::{get_task, register_task};
-pub use drips::{get_reward_stream, start_drips_stream};
 
 /// Default weight threshold: a task requires at least 300 cumulative
 /// reputation weight to be resolved. This can be overridden by the
@@ -40,25 +40,26 @@ pub struct VeroContract;
 
 #[contractimpl]
 impl VeroContract {
-    pub fn initialize(
-        env: Env,
-        token: Address,
-        threshold: i128,
-    ) -> Result<(), ContractError> {
+    /// Initializes the contract with a token address and lock threshold.
+    ///
+    /// `threshold` is the minimum amount of tokens a guardian must lock
+    /// (strictly greater than) to be eligible to vote. Set to 0 to disable
+    /// the token-lock requirement entirely.
+    pub fn initialize(env: Env, token: Address, threshold: i128) -> Result<(), ContractError> {
         let token_key = DataKey::TokenAddress;
         if env.storage().instance().has(&token_key) {
             return Err(ContractError::AlreadyInitialized);
         }
         env.storage().instance().set(&token_key, &token);
-        env.storage().instance().set(&DataKey::LockThreshold, &threshold);
+        env.storage()
+            .instance()
+            .set(&DataKey::LockThreshold, &threshold);
+        // Record the current storage schema version for future migrations.
+        migrate::set_version(&env, migrate::CURRENT_VERSION);
         Ok(())
     }
 
-    pub fn lock_tokens(
-        env: Env,
-        guardian: Address,
-        amount: i128,
-    ) -> Result<(), ContractError> {
+    pub fn lock_tokens(env: Env, guardian: Address, amount: i128) -> Result<(), ContractError> {
         guardian.require_auth();
 
         let token_key = DataKey::TokenAddress;
@@ -72,15 +73,14 @@ impl VeroContract {
 
         let balance_key = DataKey::LockedBalance(guardian.clone());
         let current_balance: i128 = env.storage().instance().get(&balance_key).unwrap_or(0);
-        env.storage().instance().set(&balance_key, &(current_balance + amount));
+        env.storage()
+            .instance()
+            .set(&balance_key, &(current_balance + amount));
 
         Ok(())
     }
 
-    pub fn resign_guardian(
-        env: Env,
-        guardian: Address,
-    ) -> Result<(), ContractError> {
+    pub fn resign_guardian(env: Env, guardian: Address) -> Result<(), ContractError> {
         guardian.require_auth();
 
         let token_key = DataKey::TokenAddress;
@@ -107,10 +107,7 @@ impl VeroContract {
         Ok(())
     }
 
-    pub fn unlock_tokens(
-        env: Env,
-        guardian: Address,
-    ) -> Result<(), ContractError> {
+    pub fn unlock_tokens(env: Env, guardian: Address) -> Result<(), ContractError> {
         guardian.require_auth();
 
         let token_key = DataKey::TokenAddress;
@@ -228,18 +225,12 @@ impl VeroContract {
     /// Sets the vault address for payout release. Only callable by admin.
     pub fn set_vault_address(env: Env, admin: Address, vault: Address) {
         admin.require_auth();
-        env.storage()
-            .instance()
-            .set(&DataKey::VaultAddress, &vault);
+        env.storage().instance().set(&DataKey::VaultAddress, &vault);
     }
 
     // ─── Task lifecycle ────────────────────────────────────────────
 
-    pub fn register_task(
-        env: Env,
-        admin: Address,
-        task_id: u64,
-    ) -> Result<(), ContractError> {
+    pub fn register_task(env: Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
         circuit_breaker::require_not_paused(&env)?;
         task::register_task(&env, admin, task_id)
     }
@@ -261,8 +252,6 @@ impl VeroContract {
         guardian.require_auth();
         reentrancy::lock(&env)?;
 
-        reentrancy::lock(&env)?;
-
         // 1. Verify guardian status
         if !guardian::is_guardian(&env, &guardian) {
             reentrancy::unlock(&env);
@@ -273,12 +262,19 @@ impl VeroContract {
         if !env.storage().instance().has(&token_key) {
             return Err(ContractError::NotInitialized);
         }
-        let threshold: i128 = env.storage().instance().get(&DataKey::LockThreshold).unwrap_or(0);
-        let balance_key = DataKey::LockedBalance(guardian.clone());
-        let locked_balance: i128 = env.storage().instance().get(&balance_key).unwrap_or(0);
-
-        if locked_balance <= threshold {
-            return Err(ContractError::InsufficientLockedBalance);
+        // Only enforce token-lock requirement when a lock threshold > 0 is set.
+        let lock_threshold: i128 = env
+            .storage()
+            .instance()
+            .get(&DataKey::LockThreshold)
+            .unwrap_or(0);
+        if lock_threshold > 0 {
+            let balance_key = DataKey::LockedBalance(guardian.clone());
+            let locked_balance: i128 = env.storage().instance().get(&balance_key).unwrap_or(0);
+            if locked_balance <= lock_threshold {
+                reentrancy::unlock(&env);
+                return Err(ContractError::InsufficientLockedBalance);
+            }
         }
 
         let voted_key = DataKey::Voted(task_id, guardian.clone());
@@ -329,9 +325,13 @@ impl VeroContract {
         if t.total_weight_accrued >= threshold {
             t.is_done = true;
             events::emit_task_resolved(&env, task_id, t.total_weight_accrued);
-            
+
             // Release funds from escrow if configured
-            if let Some(vault_addr) = env.storage().instance().get::<_, Address>(&DataKey::VaultAddress) {
+            if let Some(vault_addr) = env
+                .storage()
+                .instance()
+                .get::<_, Address>(&DataKey::VaultAddress)
+            {
                 let vault_client = vault::VaultClient::new(&env, &vault_addr);
                 // Call try_release_funds, which catches VM traps from the cross-contract call
                 if vault_client.try_release_funds(&task_id).is_err() {
@@ -370,8 +370,7 @@ impl VeroContract {
         require_not_paused(&env)?;
         admin.require_auth();
 
-        let result =
-            drips::start_drips_stream(&env, drips_address, contributor.clone(), task_id);
+        let result = drips::start_drips_stream(&env, drips_address, contributor.clone(), task_id);
 
         match &result {
             Ok(()) => {
@@ -396,14 +395,6 @@ impl VeroContract {
 
     // ─── Circuit breaker ───────────────────────────────────────────
 
-    /// Returns true if the contract is currently paused by the circuit breaker.
-    pub fn is_paused(env: Env) -> bool {
-        env.storage()
-            .instance()
-            .get(&DataKey::Paused)
-            .unwrap_or(false)
-    }
-
     /// Reports a transaction failure to the circuit breaker.
     /// Anyone can call this after observing a failed contract invocation.
     /// Storage writes here are committed because this call succeeds (returns Ok).
@@ -425,6 +416,25 @@ impl VeroContract {
     pub fn upgrade_contract(env: Env, admin: Address, new_wasm_hash: soroban_sdk::BytesN<32>) {
         admin.require_auth();
         let deployer = env.deployer();
-        deployer.update_current_contract_wasm(&new_wasm_hash);
+        deployer.update_current_contract_wasm(new_wasm_hash);
+    }
+
+    // ─── Storage versioning & migration ────────────────────────────
+
+    /// Returns the current storage schema version recorded on-chain.
+    /// Returns 0 if no version has been set (pre-versioning contracts).
+    pub fn get_storage_version(env: Env) -> u32 {
+        migrate::get_version(&env)
+    }
+
+    /// Migrates storage from the currently recorded version to the
+    /// latest schema version. The migration is **idempotent**: calling
+    /// it when already at the latest version is a safe no-op.
+    ///
+    /// Only callable by admin.
+    pub fn migrate_storage(env: Env, admin: Address) -> Result<(), ContractError> {
+        admin.require_auth();
+        migrate::migrate(&env);
+        Ok(())
     }
 }

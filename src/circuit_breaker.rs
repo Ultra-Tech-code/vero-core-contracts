@@ -7,7 +7,12 @@ const FAILURE_THRESHOLD: u32 = 50;
 
 /// Returns `Err(ContractPaused)` if the contract is currently paused.
 pub fn require_not_paused(env: &Env) -> Result<(), ContractError> {
-    if env.storage().instance().get(&DataKey::Paused).unwrap_or(false) {
+    if env
+        .storage()
+        .instance()
+        .get(&DataKey::Paused)
+        .unwrap_or(false)
+    {
         return Err(ContractError::ContractPaused);
     }
     Ok(())

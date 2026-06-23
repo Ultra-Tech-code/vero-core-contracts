@@ -54,11 +54,7 @@ pub fn start_drips_stream(
         ],
     );
 
-    env.invoke_contract::<Val>(
-        &drips_address,
-        &Symbol::new(env, "start_stream"),
-        args,
-    );
+    env.invoke_contract::<Val>(&drips_address, &Symbol::new(env, "start_stream"), args);
 
     // 4. Record the reward stream in local storage
     let stream = RewardStream {
