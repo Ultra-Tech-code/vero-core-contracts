@@ -1,5 +1,7 @@
 use soroban_sdk::{contracttype, Address};
 
+use crate::types::Role;
+
 /// Canonical storage key definitions for the Vero contract.
 ///
 /// All contract state is stored under these typed keys in instance storage.
@@ -34,4 +36,11 @@ pub enum DataKey {
     ArchivedTask(u64),
     Initialized,
     WithdrawalTimelock(Address),
+    /// Role-based access control: maps (Address, Role) to bool
+    RoleAssignment(Address, Role),
+    /// Multi-sig upgrade management
+    UpgradeSigners,
+    UpgradeThreshold,
+    PendingUpgradeWasm,
+    PendingUpgradeApprovals,
 }

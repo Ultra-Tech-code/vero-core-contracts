@@ -22,7 +22,7 @@ pub fn set_reputation(
 ) -> Result<(), ContractError> {
     validation::validate_guardian_config(env, &admin, &guardian)?;
     validation::validate_reputation_score(score)?;
-    admin.require_auth();
+    crate::contracts::rbac::require_role(env, &admin, crate::types::Role::GuardianManager)?;
 
     if !guardian::is_guardian(env, &guardian) {
         return Err(ContractError::NotGuardian);

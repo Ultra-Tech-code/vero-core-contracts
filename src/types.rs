@@ -2,6 +2,30 @@ use soroban_sdk::{contracterror, contracttype, Address, BytesN, Map};
 
 pub use crate::contracts::storage_layout::DataKey;
 
+/// Roles for granular access control following the principle of least privilege.
+#[contracttype]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Role {
+    /// Full administrative power: grant/revoke roles, emergency controls,
+    /// configure multi-sig upgrade signers, cancel upgrades
+    Admin = 0,
+    
+    /// Guardian lifecycle management: add/remove guardians, set reputation scores
+    GuardianManager = 1,
+    
+    /// Task lifecycle: register, cancel, and purge tasks
+    TaskManager = 2,
+    
+    /// Configuration: set weight threshold, vault address
+    ConfigManager = 3,
+    
+    /// Emergency controls: pause, unpause, toggle_pause, reset_circuit_breaker
+    EmergencyManager = 4,
+    
+    /// Reward distribution: start_reward_stream
+    TreasuryManager = 5,
+}
+
 #[contracttype]
 #[derive(Clone)]
 pub struct WithdrawalRequest {
@@ -49,8 +73,6 @@ pub struct Snapshot {
     pub votes: Map<(u64, Address), bool>,
     pub reward_streams: Map<u64, RewardStream>,
 }
-
-pub use crate::contracts::storage_layout::DataKey;
 
 /// A single call within a `batch_execute` transaction.
 #[contracttype]
@@ -119,30 +141,6 @@ pub enum Operation {
     CancelUpgrade = 20,
 }
 
-/// Batch call variants for the `batch_execute` entry point.
-#[contracttype]
-#[derive(Clone)]
-pub enum BatchCall {
-    RegisterTask(Address, u64),
-    CancelTask(Address, u64),
-    Vote(Address, u64),
-    AddGuardian(Address, Address),
-    RemoveGuardian(Address, Address),
-    SetReputation(Address, Address, u64),
-    LockTokens(Address, i128),
-    RequestUnlock(Address),
-    UnlockTokens(Address),
-    ResignGuardian(Address),
-    SetWeightThreshold(Address, u64),
-    SetVaultAddress(Address, Address),
-    StartRewardStream(Address, Address, Address, u64),
-    TogglePause(Address),
-    Pause(Address),
-    Unpause(Address),
-    RecordFailure(Address),
-    ResetCircuitBreaker(Address),
-}
-
 #[contracterror]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContractError {
@@ -173,9 +171,6 @@ pub enum ContractError {
     TaskNotStale = 25,
     SnapshotNotFound = 26,
     WithdrawalTimelockActive = 27,
-    TaskNotTerminal = 28,
-    InsufficientReputation = 29,
-}
     /// Task is still active (not done and not cancelled) and cannot be purged.
     TaskNotTerminal = 28,
     /// Guardian's reputation score is below the minimum threshold to vote.
@@ -190,4 +185,6 @@ pub enum ContractError {
     AlreadyApproved = 33,
     /// Invalid multi-sig upgrade configuration (threshold > signers or zero).
     InvalidUpgradeConfig = 34,
+    /// Cannot revoke the last remaining Admin role holder (would cause lockout).
+    LastAdminRemovalBlocked = 35,
 }

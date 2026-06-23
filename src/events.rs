@@ -147,3 +147,50 @@ pub fn emit_contract_upgraded(env: &Env, admin: &Address, wasm_hash: &soroban_sd
         (admin.clone(), wasm_hash.clone()),
     );
 }
+
+// ─── Multi-sig upgrade events ────────────────────────────────────────
+
+pub fn emit_upgrade_signers_set(env: &Env, signer_count: u32, threshold: u32) {
+    env.events().publish(
+        (symbol_short!("up_sig"),),
+        (signer_count, threshold),
+    );
+}
+
+pub fn emit_upgrade_proposed(env: &Env, signer: &Address) {
+    env.events().publish(
+        (symbol_short!("up_prop"),),
+        (signer.clone(),),
+    );
+}
+
+pub fn emit_upgrade_approved(env: &Env, signer: &Address, approvals: u32, threshold: u32) {
+    env.events().publish(
+        (symbol_short!("up_app"),),
+        (signer.clone(), approvals, threshold),
+    );
+}
+
+pub fn emit_upgrade_executed(env: &Env) {
+    env.events().publish((symbol_short!("up_exec"),), ());
+}
+
+pub fn emit_upgrade_cancelled(env: &Env) {
+    env.events().publish((symbol_short!("up_cncl"),), ());
+}
+
+// ─── Role-based access control events ────────────────────────────────
+
+pub fn emit_role_granted(env: &Env, granter: &Address, target: &Address, role: u8) {
+    env.events().publish(
+        (symbol_short!("role_gnt"),),
+        (granter.clone(), target.clone(), role as u32),
+    );
+}
+
+pub fn emit_role_revoked(env: &Env, revoker: &Address, target: &Address, role: u8) {
+    env.events().publish(
+        (symbol_short!("role_rvk"),),
+        (revoker.clone(), target.clone(), role as u32),
+    );
+}
