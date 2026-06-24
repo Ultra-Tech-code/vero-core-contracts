@@ -1,13 +1,25 @@
+//! # Vero Core Contracts
+//!
+//! Core contracts for the Vero protocol, providing reputation-weighted voting,
+//! task registration and verification, token locking/unlocking for guardians,
+//! reward stream management, and multi-sig contract upgrades.
+
 #![no_std]
+#![warn(missing_docs)]
 
 mod contracts;
-
 mod circuit_breaker;
-mod guards;
+
+/// Pure consensus logic.
 #[cfg(any(feature = "verification", test))]
 pub mod consensus;
+
 mod drips;
+
+/// Contract event emitters.
 pub mod events;
+
+mod gas;
 mod guardian;
 mod migrate;
 mod reentrancy;
@@ -18,10 +30,6 @@ mod timelock;
 mod types;
 mod validation;
 mod vault;
-
-use soroban_sdk::{contract, contractimpl, Address, Env};
-use types::{ContractError, DataKey, RewardStream};
-
 
 pub use contracts::proxy_entry::{VeroContract, VeroContractClient};
 pub use contracts::rbac::{grant_role_internal, has_role, require_role, revoke_role_internal};
@@ -408,32 +416,8 @@ impl VeroContract {
         circuit_breaker::reset(&env, admin);
     }
 
+/// The default cumulative weight threshold required to resolve a task.
 pub const DEFAULT_WEIGHT_THRESHOLD: u64 = 300;
 
-    /// Upgrades the contract to a new WASM. Only callable by admin.
-    /// Uses Soroban's deployer to update the WASM hash in storage.
-    pub fn upgrade_contract(env: Env, admin: Address, new_wasm_hash: soroban_sdk::BytesN<32>) {
-        admin.require_auth();
-        let deployer = env.deployer();
-        deployer.update_current_contract_wasm(new_wasm_hash);
-    }
-
-    // ─── Storage versioning & migration ────────────────────────────
-
-    /// Returns the current storage schema version recorded on-chain.
-    /// Returns 0 if no version has been set (pre-versioning contracts).
-    pub fn get_storage_version(env: Env) -> u32 {
-        migrate::get_version(&env)
-    }
-
-    /// Migrates storage from the currently recorded version to the
-    /// latest schema version. The migration is **idempotent**: calling
-    /// it when already at the latest version is a safe no-op.
-    ///
-    /// Only callable by admin.
-    pub fn migrate_storage(env: Env, admin: Address) -> Result<(), ContractError> {
-        admin.require_auth();
-        migrate::migrate(&env);
-        Ok(())
-    }
-}
+/// Type alias for the main `VeroContract` implementation.
+pub type VeroCore = VeroContract;

@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 use soroban_sdk::{symbol_short, Address, Env};
 
 /// Emits an event when a task reaches consensus.

@@ -1,9 +1,12 @@
+#![allow(missing_docs)]
+
 use soroban_sdk::{Address, Env, IntoVal, Symbol, Val, Vec as SorobanVec};
 
 use crate::storage;
 use crate::types::{ContractError, DataKey, RewardStream};
 use crate::validation;
 
+/// Starts a Drips reward stream for a verified task to reward a contributor.
 pub fn start_drips_stream(
     env: &Env,
     drips_address: Address,
@@ -49,12 +52,14 @@ pub fn start_drips_stream(
     Ok(())
 }
 
+/// Retrieves the reward stream details for a specific task.
 pub fn get_reward_stream(env: &Env, task_id: u64) -> Option<RewardStream> {
     env.storage()
         .instance()
         .get(&DataKey::RewardStream(task_id))
 }
 
+/// Retrieves a list of all active reward stream task IDs.
 pub fn get_all_reward_streams(env: &Env) -> SorobanVec<u64> {
     env.storage()
         .instance()

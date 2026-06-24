@@ -1,11 +1,18 @@
+#![allow(missing_docs)]
+
 use crate::contracts::logic;
 use crate::types::{BatchCall, ContractError, DataKey, RewardStream, Snapshot};
 use crate::DEFAULT_WEIGHT_THRESHOLD;
 use crate::{circuit_breaker, drips, events, guardian, reputation, storage, task};
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, Vec};
 
+/// The main entrypoint for the Vero Core contract.
+///
+/// Implements all contract features including voting, task registration,
+/// reputation management, token locking, and upgrades.
 #[contract]
 pub struct VeroContract;
+
 
 #[contractimpl]
 impl VeroContract {

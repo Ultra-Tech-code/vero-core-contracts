@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 use soroban_sdk::{panic_with_error, Address, Env, Vec};
 
 use crate::events;
@@ -14,7 +16,8 @@ fn is_terminal(task: &Task) -> bool {
 
 const MAX_REGISTER_TASK_BATCH_SIZE: u32 = 32;
 
-pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>, min_votes_required: u32) -> Result<(), ContractError> {
+/// Registers a batch of new voting tasks in the contract storage.
+pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>) -> Result<(), ContractError> {
     if task_ids.is_empty() || task_ids.len() > MAX_REGISTER_TASK_BATCH_SIZE {
         return Err(ContractError::BatchTooLarge);
     }
@@ -90,8 +93,17 @@ pub fn cancel_task(env: &Env, admin: Address, task_id: u64) -> Result<(), Contra
     Ok(())
 }
 
+/// Retrieves an active task from storage by its ID.
 pub fn get_task(env: &Env, task_id: u64) -> Option<Task> {
-    env.storage().instance().get(&DataKey::Task(task_id))
+    storage::get_active_task(env, task_id)
+}
+
+/// Retrieves all task IDs currently tracked by the contract.
+pub fn get_all_tasks(env: &Env) -> Vec<u64> {
+    env.storage()
+        .instance()
+        .get(&DataKey::AllTasks)
+        .unwrap_or(Vec::new(env))
 }
 
 /// Purge a terminal task (done or cancelled) from contract storage.
