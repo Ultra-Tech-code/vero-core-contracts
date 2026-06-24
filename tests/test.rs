@@ -1673,3 +1673,47 @@ fn test_vote_batch_accumulates_weight_across_tasks() {
     assert_eq!(task31.total_weight_accrued, 550);
     assert_eq!(task31.votes, 2);
 }
+
+// ─── Error code tests ──────────────────────────────────────────────
+
+#[test]
+fn test_remove_nonexistent_guardian_panics() {
+    let (env, _contract_id, admin, _token, client) = setup();
+    let nonexistent = Address::generate(&env);
+
+    let result = client.try_remove_guardian(&admin, &nonexistent);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_cancel_resolved_task_panics() {
+    let (env, _contract_id, admin, token, client) = setup();
+    client.set_weight_threshold(&admin, &300u64);
+
+    let g = add_guardian_with_rep(&env, &client, &admin, 300);
+    client.register_task(&admin, &1u64);
+    lock_for_guardian(&env, &token, &client, &g, 101);
+    client.vote(&g, &1u64);
+
+    // Task is now resolved (done)
+    let task = client.get_task(&1u64).unwrap();
+    assert!(task.is_done);
+
+    // Cancelling a resolved task should panic
+    let result = client.try_cancel_task(&admin, &1u64);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_duplicate_vote_rejected_with_error() {
+    let (env, _contract_id, admin, token, client) = setup();
+    client.set_weight_threshold(&admin, &300u64);
+
+    let g = add_guardian_with_rep(&env, &client, &admin, 300);
+    client.register_task(&admin, &1u64);
+    lock_for_guardian(&env, &token, &client, &g, 101);
+    client.vote(&g, &1u64);
+
+    let result = client.try_vote(&g, &1u64);
+    assert!(result.is_err());
+}

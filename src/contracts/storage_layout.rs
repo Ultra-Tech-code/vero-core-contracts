@@ -36,9 +36,6 @@ pub enum DataKey {
     ArchivedTask(u64),
     Initialized,
     WithdrawalTimelock(Address),
-    /// Role-based access control: maps (Address, Role) to bool
-    RoleAssignment(Address, Role),
-    /// Multi-sig upgrade management
     UpgradeSigners,
     UpgradeThreshold,
     PendingUpgradeWasm,

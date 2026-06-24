@@ -2,28 +2,13 @@ use soroban_sdk::{contracterror, contracttype, Address, BytesN, Map};
 
 pub use crate::contracts::storage_layout::DataKey;
 
-/// Roles for granular access control following the principle of least privilege.
-#[contracttype]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Role {
-    /// Full administrative power: grant/revoke roles, emergency controls,
-    /// configure multi-sig upgrade signers, cancel upgrades
-    Admin = 0,
-    
-    /// Guardian lifecycle management: add/remove guardians, set reputation scores
-    GuardianManager = 1,
-    
-    /// Task lifecycle: register, cancel, and purge tasks
-    TaskManager = 2,
-    
-    /// Configuration: set weight threshold, vault address
-    ConfigManager = 3,
-    
-    /// Emergency controls: pause, unpause, toggle_pause, reset_circuit_breaker
-    EmergencyManager = 4,
-    
-    /// Reward distribution: start_reward_stream
-    TreasuryManager = 5,
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+pub enum Error {
+    NotAdmin = 1,
+    NotGuardian = 2,
+    TaskAlreadyResolved = 3,
+    DuplicateVote = 4,
 }
 
 #[contracttype]
@@ -171,9 +156,7 @@ pub enum ContractError {
     TaskNotStale = 25,
     SnapshotNotFound = 26,
     WithdrawalTimelockActive = 27,
-    /// Task is still active (not done and not cancelled) and cannot be purged.
     TaskNotTerminal = 28,
-    /// Guardian's reputation score is below the minimum threshold to vote.
     InsufficientReputation = 29,
     /// Caller is not authorized as a multi-sig upgrade signer.
     NotUpgradeSigner = 30,
