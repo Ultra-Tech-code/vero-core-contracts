@@ -31,6 +31,7 @@ pub struct Task {
     pub resolved_at: u64,
     pub total_weight_accrued: u64,
     pub is_cancelled: bool,
+    pub min_votes_required: u32,
 }
 
 #[contracttype]
@@ -63,7 +64,7 @@ pub struct Snapshot {
 #[contracttype]
 #[derive(Clone)]
 pub enum BatchCall {
-    RegisterTask(Address, u64),
+    RegisterTask(Address, u64, u32),
     CancelTask(Address, u64),
     Vote(Address, u64),
     AddGuardian(Address, Address),

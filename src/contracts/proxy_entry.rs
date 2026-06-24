@@ -164,11 +164,11 @@ impl VeroContract {
         events::emit_vault_set(&env, &admin, &vault);
     }
 
-    pub fn register_task(env: Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
+    pub fn register_task(env: Env, admin: Address, task_id: u64, min_votes_required: u32) -> Result<(), ContractError> {
         circuit_breaker::require_not_paused(&env)?;
         crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::TaskManager)?;
         let task_ids = soroban_sdk::vec![&env, task_id];
-        task::register_tasks(&env, admin, task_ids)
+        task::register_tasks(&env, admin, task_ids, min_votes_required)
     }
 
     pub fn cancel_task(env: Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
@@ -540,8 +540,8 @@ impl VeroContract {
     ) -> Result<(), ContractError> {
         for call in calls.iter() {
             match call {
-                BatchCall::RegisterTask(admin, task_id) => {
-                    Self::register_task(env.clone(), admin, task_id)?
+                BatchCall::RegisterTask(admin, task_id, min_votes_required) => {
+                    Self::register_task(env.clone(), admin, task_id, min_votes_required)?
                 }
                 BatchCall::CancelTask(admin, task_id) => {
                     Self::cancel_task(env.clone(), admin, task_id)?

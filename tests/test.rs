@@ -86,14 +86,14 @@ fn test_non_admin_cannot_register_task() {
     let stranger = Address::generate(&env);
 
     // stranger is not the stored admin — must be rejected
-    let result = client.try_register_task(&stranger, &1u64);
+    let result = client.try_register_task(&stranger, &1u64, &1u32);
     assert!(result.is_err());
 }
 
 #[test]
 fn test_admin_can_register_task() {
     let (_env, _contract_id, admin, _token, client) = setup();
-    client.register_task(&admin, &1u64);
+    client.register_task(&admin, &1u64, &1u32);
     assert!(client.get_task(&1u64).is_some());
 }
 
@@ -106,7 +106,7 @@ fn test_register_task_rejected_before_initialize() {
     let stranger = Address::generate(&env);
 
     // No initialize called → no stored admin → NotInitialized
-    let result = client.try_register_task(&stranger, &1u64);
+    let result = client.try_register_task(&stranger, &1u64, &1u32);
     assert!(result.is_err());
 }
 
@@ -118,7 +118,7 @@ fn test_add_guardian_and_register_task() {
     let guardian = Address::generate(&env);
 
     client.add_guardian(&admin, &guardian);
-    client.register_task(&admin, &1u64);
+    client.register_task(&admin, &1u64, &1u32);
 
     let task = client.get_task(&1u64).unwrap();
     assert_eq!(task.id, 1);
@@ -192,7 +192,7 @@ fn test_single_high_rep_guardian_resolves_task() {
     client.set_weight_threshold(&admin, &300u64);
 
     let g = add_guardian_with_rep(&env, &client, &admin, 300);
-    client.register_task(&admin, &1u64);
+    client.register_task(&admin, &1u64, &1u32);
     lock_for_guardian(&env, &token, &client, &g, 101);
     client.vote(&g, &1u64);
 
@@ -211,7 +211,7 @@ fn test_multiple_guardians_accumulate_weight() {
     let g2 = add_guardian_with_rep(&env, &client, &admin, 100);
     let g3 = add_guardian_with_rep(&env, &client, &admin, 100);
 
-    client.register_task(&admin, &42u64);
+    client.register_task(&admin, &42u64, &1u32);
 
     lock_for_guardian(&env, &token, &client, &g1, 101);
     lock_for_guardian(&env, &token, &client, &g2, 101);
@@ -234,7 +234,7 @@ fn test_weight_vs_count_logic() {
     let g1 = add_guardian_with_rep(&env, &client, &admin, 200);
     let g2 = add_guardian_with_rep(&env, &client, &admin, 150);
 
-    client.register_task(&admin, &20u64);
+    client.register_task(&admin, &20u64, &1u32);
 
     lock_for_guardian(&env, &token, &client, &g1, 101);
     lock_for_guardian(&env, &token, &client, &g2, 101);
@@ -256,7 +256,7 @@ fn test_insufficient_weight_does_not_resolve_task() {
 
     let guardians: [Address; 5] =
         core::array::from_fn(|_| add_guardian_with_rep(&env, &client, &admin, 100));
-    client.register_task(&admin, &1u64);
+    client.register_task(&admin, &1u64, &1u32);
 
     for g in &guardians {
         lock_for_guardian(&env, &token, &client, g, 101);
@@ -276,7 +276,7 @@ fn numeric_minimum_and_maximum_boundaries_succeed() {
 
     client.set_reputation(&admin, &guardian, &MAX_REPUTATION_SCORE);
     client.set_weight_threshold(&admin, &MAX_WEIGHT_THRESHOLD);
-    client.register_task(&admin, &MAX_TASK_ID);
+    client.register_task(&admin, &MAX_TASK_ID, &1u32);
     lock_for_guardian(&env, &token, &client, &guardian, MAX_TOKEN_AMOUNT);
 
     assert_eq!(client.get_reputation(&guardian), Some(MAX_REPUTATION_SCORE));
@@ -289,7 +289,7 @@ fn maximum_lock_threshold_still_allows_max_balance_vote() {
     let (env, _contract_id, admin, token, client) = setup_with_lock_threshold(MAX_LOCK_THRESHOLD);
     let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
 
-    client.register_task(&admin, &1);
+    client.register_task(&admin, &1, &1u32);
     lock_for_guardian(&env, &token, &client, &guardian, MAX_TOKEN_AMOUNT);
     client.vote(&guardian, &1);
 
@@ -316,7 +316,7 @@ fn test_task_resolved_includes_final_weight() {
     let g1 = add_guardian_with_rep(&env, &client, &admin, 100);
     let g2 = add_guardian_with_rep(&env, &client, &admin, 115);
 
-    client.register_task(&admin, &40u64);
+    client.register_task(&admin, &40u64, &1u32);
 
     lock_for_guardian(&env, &token, &client, &g1, 101);
     lock_for_guardian(&env, &token, &client, &g2, 101);
@@ -366,7 +366,7 @@ fn test_vote_rejected_without_reputation() {
     let (env, _contract_id, admin, token, client) = setup();
     let g = Address::generate(&env);
     client.add_guardian(&admin, &g);
-    client.register_task(&admin, &7u64);
+    client.register_task(&admin, &7u64, &1u32);
     lock_for_guardian(&env, &token, &client, &g, LOCK_THRESHOLD + 1);
 
     // No reputation set → NoReputationScore
@@ -379,7 +379,7 @@ fn test_vote_rejected_with_insufficient_reputation() {
     let (env, _contract_id, admin, token, client) = setup();
     // Score 99 is below MIN_REPUTATION_THRESHOLD (100)
     let g = add_guardian_with_rep(&env, &client, &admin, 99);
-    client.register_task(&admin, &8u64);
+    client.register_task(&admin, &8u64, &1u32);
     lock_for_guardian(&env, &token, &client, &g, 101);
 
     let result = client.try_vote(&g, &8u64);
@@ -391,7 +391,7 @@ fn test_vote_allowed_at_minimum_reputation_threshold() {
     let (env, _contract_id, admin, token, client) = setup();
     // Score 100 is exactly at MIN_REPUTATION_THRESHOLD — should be allowed
     let g = add_guardian_with_rep(&env, &client, &admin, 100);
-    client.register_task(&admin, &9u64);
+    client.register_task(&admin, &9u64, &1u32);
     lock_for_guardian(&env, &token, &client, &g, 101);
 
     let result = client.try_vote(&g, &9u64);
@@ -410,14 +410,14 @@ fn test_vote_on_nonexistent_task_rejected() {
 fn task_id_validation_rejects_zero_and_over_max_without_mutation() {
     let (_env, contract_id, admin, _token, client) = setup();
 
-    assert!(client.try_register_task(&admin, &0).is_err());
-    assert!(client.try_register_task(&admin, &u64::MAX).is_err());
-    assert!(client.try_register_task(&contract_id, &42).is_err());
+    assert!(client.try_register_task(&admin, &0, &1u32).is_err());
+    assert!(client.try_register_task(&admin, &u64::MAX, &1u32).is_err());
+    assert!(client.try_register_task(&contract_id, &42, &1u32).is_err());
     assert!(client.get_task(&0).is_none());
     assert!(client.get_task(&u64::MAX).is_none());
     assert!(client.get_task(&42).is_none());
 
-    client.register_task(&admin, &42);
+    client.register_task(&admin, &42, &1u32);
     assert!(client.get_task(&42).is_some());
 }
 
@@ -465,7 +465,7 @@ fn test_reward_stream_duplicate_rejected() {
     let g1 = add_guardian_with_rep(&env, &client, &admin, 100);
     let g2 = add_guardian_with_rep(&env, &client, &admin, 100);
     let g3 = add_guardian_with_rep(&env, &client, &admin, 100);
-    client.register_task(&admin, &50u64);
+    client.register_task(&admin, &50u64, &1u32);
 
     lock_for_guardian(&env, &token, &client, &g1, 101);
     lock_for_guardian(&env, &token, &client, &g2, 101);
@@ -490,7 +490,7 @@ fn reward_stream_validation_rejects_invalid_addresses_and_ids() {
     client.set_vault_address(&admin, &vault);
 
     // Register, vote, and resolve task 77
-    client.register_task(&admin, &77u64);
+    client.register_task(&admin, &77u64, &1u32);
     let g = add_guardian_with_rep(&env, &client, &admin, 300);
     lock_for_guardian(&env, &token, &client, &g, 101);
     client.vote(&g, &77u64);
@@ -516,7 +516,7 @@ fn reward_stream_validation_rejects_invalid_addresses_and_ids() {
     let g1 = add_guardian_with_rep(&env, &client, &admin, 100);
     let g2 = add_guardian_with_rep(&env, &client, &admin, 100);
     let g3 = add_guardian_with_rep(&env, &client, &admin, 100);
-    client.register_task(&admin, &77u64);
+    client.register_task(&admin, &77u64, &1u32);
 
     lock_for_guardian(&env, &token, &client, &g1, 101);
     lock_for_guardian(&env, &token, &client, &g2, 101);
@@ -540,7 +540,7 @@ fn reward_stream_validation_rejects_invalid_addresses_and_ids() {
 fn token_amount_validation_rejects_zero_negative_and_over_max_without_locking() {
     let (env, _contract_id, admin, token, client) = setup();
     let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
-    client.register_task(&admin, &88);
+    client.register_task(&admin, &88, &1u32);
 
     assert!(client.try_lock_tokens(&guardian, &0).is_err());
     assert!(client.try_lock_tokens(&guardian, &-1).is_err());
@@ -566,7 +566,7 @@ fn aggregate_locked_amount_above_max_is_rejected_without_transfer() {
     assert!(client.try_lock_tokens(&guardian, &1).is_err());
     assert_eq!(balance_client.balance(&guardian), 1);
 
-    client.register_task(&admin, &89);
+    client.register_task(&admin, &89, &1u32);
     client.vote(&guardian, &89);
     assert_eq!(client.get_task(&89).unwrap().votes, 1);
 }
@@ -594,7 +594,7 @@ fn test_locked_balance_must_exceed_threshold() {
 
     client.add_guardian(&admin, &g);
     client.set_reputation(&admin, &g, &100u64);
-    client.register_task(&admin, &100u64);
+    client.register_task(&admin, &100u64, &1u32);
 
     lock_for_guardian(&env, &token, &client, &g, 100);
     assert!(client.try_vote(&g, &100u64).is_err());
@@ -611,7 +611,7 @@ fn test_duplicate_vote_rejected() {
 
     client.add_guardian(&admin, &g);
     client.set_reputation(&admin, &g, &100u64);
-    client.register_task(&admin, &10u64);
+    client.register_task(&admin, &10u64, &1u32);
 
     // Lock strictly above threshold (threshold = 100, need > 100)
     lock_for_guardian(&env, &token, &client, &g, 101);
@@ -646,7 +646,7 @@ fn test_resign_guardian_refunds_tokens() {
 fn existing_valid_vote_and_unlock_flows_still_pass() {
     let (env, _contract_id, admin, token, client) = setup();
     let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
-    client.register_task(&admin, &99);
+    client.register_task(&admin, &99, &1u32);
     lock_for_guardian(&env, &token, &client, &guardian, LOCK_THRESHOLD + 1);
 
     client.vote(&guardian, &99);
@@ -662,7 +662,7 @@ fn test_unlock_succeeds_for_non_guardian() {
     let non_guardian = Address::generate(&env);
     client.add_guardian(&admin, &non_guardian);
     client.set_reputation(&admin, &non_guardian, &100u64);
-    client.register_task(&admin, &1u64);
+    client.register_task(&admin, &1u64, &1u32);
     lock_for_guardian(&env, &token, &client, &non_guardian, LOCK_THRESHOLD + 1);
     client.vote(&non_guardian, &1u64);
 
@@ -698,7 +698,7 @@ fn register_task_batch_size_boundaries_are_enforced() {
     }
 
     let max_result = env.as_contract(&contract_id, || {
-        register_tasks(&env, admin.clone(), max_batch)
+        register_tasks(&env, admin.clone(), max_batch, 1)
     });
     assert!(max_result.is_ok());
     assert!(client.get_task(&1).is_some());
@@ -710,7 +710,7 @@ fn register_task_batch_size_boundaries_are_enforced() {
     }
 
     let oversized_result = env.as_contract(&contract_id, || {
-        register_tasks(&env, admin.clone(), oversized_batch)
+        register_tasks(&env, admin.clone(), oversized_batch, 1)
     });
     assert!(oversized_result.is_err());
     assert!(client.get_task(&100).is_none());
@@ -726,7 +726,7 @@ fn archive_timestamp_underflow_is_safely_rejected_without_mutation() {
     // Set weight threshold to 1 so single guardian can resolve
     client.set_weight_threshold(&admin, &1);
     let guardian = add_guardian_with_rep(&env, &client, &admin, 1);
-    client.register_task(&admin, &61u64);
+    client.register_task(&admin, &61u64, &1u32);
     lock_for_guardian(&env, &token, &client, &guardian, 101);
     env.ledger().set_timestamp(1_000);
     client.vote(&guardian, &61u64);
@@ -756,13 +756,13 @@ fn invalid_numeric_inputs_do_not_emit_success_events() {
     let drips_contract_id = env.register_contract(None, MockDripsContract);
 
     let before_register_events = env.events().all().len();
-    assert!(client.try_register_task(&admin, &0).is_err());
+    assert!(client.try_register_task(&admin, &0, &1u32).is_err());
     assert_eq!(env.events().all().len(), before_register_events);
 
     // Resolve task 62: register, vote, verify resolved
     let g = add_guardian_with_rep(&env, &client, &admin, 300);
     client.set_weight_threshold(&admin, &1);
-    client.register_task(&admin, &62u64);
+    client.register_task(&admin, &62u64, &1u32);
     lock_for_guardian(&env, &token, &client, &g, 101);
     client.vote(&g, &62u64);
     let before_stream_events = env.events().all().len();
@@ -779,7 +779,7 @@ fn legacy_add_guardian_and_register_task_flow_still_passes() {
     let guardian = Address::generate(&env);
 
     client.add_guardian(&admin, &guardian);
-    client.register_task(&admin, &1);
+    client.register_task(&admin, &1, &1u32);
 
     let task = client.get_task(&1).unwrap();
     assert_eq!(task.id, 1);
@@ -797,7 +797,7 @@ fn legacy_voting_power_views_still_pass() {
 
     assert_eq!(client.calculate_voting_power(&guardian), Some(150));
     assert_eq!(client.calculate_voting_power(&stranger), None);
-    client.register_task(&admin, &303u64);
+    client.register_task(&admin, &303u64, &1u32);
 
     let _ = client.try_vote(&stranger, &303u64);
 
@@ -837,8 +837,8 @@ fn legacy_multiple_guardian_weight_accumulates() {
     let g1 = add_guardian_with_rep(&env, &client, &admin, 100);
     let g2 = add_guardian_with_rep(&env, &client, &admin, 100);
     let g3 = add_guardian_with_rep(&env, &client, &admin, 100);
-    client.register_task(&admin, &42);
-    assert!(client.try_register_task(&admin, &1u64).is_err());
+    client.register_task(&admin, &42, &1u32);
+    assert!(client.try_register_task(&admin, &1u64, &1u32).is_err());
 
     for guardian in [&g1, &g2, &g3] {
         lock_for_guardian(&env, &token, &client, guardian, LOCK_THRESHOLD + 1);
@@ -849,14 +849,14 @@ fn legacy_multiple_guardian_weight_accumulates() {
     assert_eq!(task.votes, 3);
     assert_eq!(task.total_weight_accrued, 300);
     assert!(task.is_done);
-    assert!(client.try_register_task(&admin, &2u64).is_err());
+    assert!(client.try_register_task(&admin, &2u64, &1u32).is_err());
 }
 
 #[test]
 fn legacy_low_weight_votes_do_not_resolve_early() {
     let (env, _contract_id, admin, token, client) = setup();
     client.set_weight_threshold(&admin, &300);
-    client.register_task(&admin, &30);
+    client.register_task(&admin, &30, &1u32);
 
     // Register 5 low-weight guardians and vote
     for _ in 0..5 {
@@ -912,7 +912,7 @@ fn legacy_vote_rejections_still_pass() {
     let stranger = Address::generate(&env);
 
     client.add_guardian(&admin, &no_rep);
-    client.register_task(&admin, &7);
+    client.register_task(&admin, &7, &1u32);
     lock_for_guardian(&env, &token, &client, &no_rep, LOCK_THRESHOLD + 1);
     lock_for_guardian(&env, &token, &client, &guardian, LOCK_THRESHOLD + 1);
     client.toggle_pause(&admin);
@@ -931,13 +931,13 @@ fn test_operations_resume_after_unpause() {
     assert!(client.is_paused());
 
     // Verify operations are rejected while paused
-    assert!(client.try_register_task(&admin, &1u64).is_err());
+    assert!(client.try_register_task(&admin, &1u64, &1u32).is_err());
 
     client.toggle_pause(&admin);
     assert!(!client.is_paused());
 
     // Operations succeed after unpause
-    client.register_task(&admin, &1u64);
+    client.register_task(&admin, &1u64, &1u32);
     lock_for_guardian(&env, &token, &client, &g, 101);
     client.vote(&g, &1u64);
 }
@@ -948,7 +948,7 @@ fn legacy_reward_stream_rejects_unverified_and_duplicate_tasks() {
     let contributor = Address::generate(&env);
     let drips_contract_id = env.register_contract(None, MockDripsContract);
 
-    client.register_task(&admin, &50);
+    client.register_task(&admin, &50, &1u32);
     assert!(client
         .try_start_reward_stream(&admin, &drips_contract_id, &contributor, &50)
         .is_err());
@@ -957,7 +957,7 @@ fn legacy_reward_stream_rejects_unverified_and_duplicate_tasks() {
 #[test]
 fn test_explicit_pause_and_unpause_rejects_vote() {
     let (env, _contract_id, admin, token, client) = setup();
-    client.register_task(&admin, &1u64);
+    client.register_task(&admin, &1u64, &1u32);
     let g = add_guardian_with_rep(&env, &client, &admin, 100);
     lock_for_guardian(&env, &token, &client, &g, 101);
 
@@ -974,7 +974,7 @@ fn legacy_token_locking_and_unlocking_flows_still_pass() {
     let guardian = add_guardian_with_rep(&env, &client, &admin, 100);
     let non_guardian = Address::generate(&env);
 
-    client.register_task(&admin, &100);
+    client.register_task(&admin, &100, &1u32);
     assert!(client.try_vote(&guardian, &100).is_err());
 
     lock_for_guardian(&env, &token, &client, &guardian, LOCK_THRESHOLD);
@@ -993,7 +993,7 @@ fn legacy_token_locking_and_unlocking_flows_still_pass() {
 #[test]
 fn test_paused_contract_rejects_vote() {
     let (env, _contract_id, admin, token, client) = setup();
-    client.register_task(&admin, &1u64);
+    client.register_task(&admin, &1u64, &1u32);
     let g = add_guardian_with_rep(&env, &client, &admin, 100);
     lock_for_guardian(&env, &token, &client, &g, 101);
 
@@ -1009,7 +1009,7 @@ fn legacy_reentrancy_lock_released_after_failed_vote() {
     let guardian = add_guardian_with_rep(&env, &client, &admin, 100);
     let stranger = Address::generate(&env);
 
-    client.register_task(&admin, &303);
+    client.register_task(&admin, &303, &1u32);
     let _ = client.try_vote(&stranger, &303);
 
     lock_for_guardian(&env, &token, &client, &guardian, LOCK_THRESHOLD + 1);
@@ -1025,10 +1025,10 @@ fn legacy_pause_and_circuit_breaker_flows_still_pass() {
     assert!(!client.is_paused());
     client.toggle_pause(&admin);
     assert!(client.is_paused());
-    assert!(client.try_register_task(&admin, &2).is_err());
+    assert!(client.try_register_task(&admin, &2, &1u32).is_err());
 
     client.toggle_pause(&admin);
-    client.register_task(&admin, &2);
+    client.register_task(&admin, &2, &1u32);
     lock_for_guardian(&env, &token, &client, &guardian, LOCK_THRESHOLD + 1);
     assert!(client.try_vote(&guardian, &1u64).is_err());
 }
@@ -1036,7 +1036,7 @@ fn legacy_pause_and_circuit_breaker_flows_still_pass() {
 #[test]
 fn test_admin_can_reset_circuit_breaker() {
     let (env, _contract_id, admin, token, client) = setup();
-    client.register_task(&admin, &1u64);
+    client.register_task(&admin, &1u64, &1u32);
     let g = add_guardian_with_rep(&env, &client, &admin, 100);
     lock_for_guardian(&env, &token, &client, &g, 101);
 
@@ -1395,7 +1395,7 @@ fn test_purge_done_task_removes_storage() {
     client.set_weight_threshold(&admin, &300u64);
 
     let g = add_guardian_with_rep(&env, &client, &admin, 300);
-    client.register_task(&admin, &1u64);
+    client.register_task(&admin, &1u64, &1u32);
     lock_for_guardian(&env, &token, &client, &g, 101);
     client.vote(&g, &1u64);
 
@@ -1412,7 +1412,7 @@ fn test_purge_done_task_removes_storage() {
 #[test]
 fn test_purge_cancelled_task_removes_storage() {
     let (_env, _contract_id, admin, _token, client) = setup();
-    client.register_task(&admin, &2u64);
+    client.register_task(&admin, &2u64, &1u32);
     client.cancel_task(&admin, &2u64);
 
     assert!(client.get_task(&2u64).unwrap().is_cancelled);
@@ -1425,7 +1425,7 @@ fn test_purge_cancelled_task_removes_storage() {
 #[test]
 fn test_purge_active_task_reverts() {
     let (_env, _contract_id, admin, _token, client) = setup();
-    client.register_task(&admin, &3u64);
+    client.register_task(&admin, &3u64, &1u32);
 
     // Task is active — purge must revert
     let result = client.try_purge_task(&admin, &3u64);
@@ -1449,8 +1449,8 @@ fn test_purge_removes_task_from_all_tasks_index() {
     client.set_weight_threshold(&admin, &300u64);
 
     // Register two tasks
-    client.register_task(&admin, &10u64);
-    client.register_task(&admin, &11u64);
+    client.register_task(&admin, &10u64, &1u32);
+    client.register_task(&admin, &11u64, &1u32);
 
     // Resolve task 10
     let g = add_guardian_with_rep(&env, &client, &admin, 300);
@@ -1473,7 +1473,7 @@ fn test_purge_clears_voter_records() {
     client.set_weight_threshold(&admin, &300u64);
 
     let g = add_guardian_with_rep(&env, &client, &admin, 300);
-    client.register_task(&admin, &20u64);
+    client.register_task(&admin, &20u64, &1u32);
     lock_for_guardian(&env, &token, &client, &g, 101);
     client.vote(&g, &20u64);
 
@@ -1486,7 +1486,7 @@ fn test_purge_clears_voter_records() {
 #[test]
 fn test_non_admin_cannot_purge_task() {
     let (env, _contract_id, admin, _token, client) = setup();
-    client.register_task(&admin, &30u64);
+    client.register_task(&admin, &30u64, &1u32);
     client.cancel_task(&admin, &30u64);
 
     let stranger = Address::generate(&env);
@@ -1506,7 +1506,7 @@ fn test_purge_archived_task_removes_storage() {
     env.ledger().set_timestamp(1000u64);
 
     let g = add_guardian_with_rep(&env, &client, &admin, 300);
-    client.register_task(&admin, &40u64);
+    client.register_task(&admin, &40u64, &1u32);
     lock_for_guardian(&env, &token, &client, &g, 101);
     client.vote(&g, &40u64);
 
@@ -1538,7 +1538,7 @@ fn test_batch_execute_successful() {
 
     let calls = soroban_sdk::vec![
         &env,
-        vero_core_contracts::BatchCall::RegisterTask(admin.clone(), 1u64),
+        vero_core_contracts::BatchCall::RegisterTask(admin.clone(), 1u64, 1u32),
         vero_core_contracts::BatchCall::Vote(guardian.clone(), 1u64),
     ];
 
@@ -1556,7 +1556,7 @@ fn test_batch_execute_reverts_on_failure() {
     // Register a valid task, but vote on an invalid task (task_id 99 doesn't exist)
     let calls = soroban_sdk::vec![
         &env,
-        vero_core_contracts::BatchCall::RegisterTask(admin.clone(), 2u64),
+        vero_core_contracts::BatchCall::RegisterTask(admin.clone(), 2u64, 1u32),
         vero_core_contracts::BatchCall::Vote(guardian.clone(), 99u64),
     ];
 
@@ -1578,9 +1578,9 @@ fn test_vote_batch_all_valid() {
     let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
     lock_for_guardian(&env, &token, &client, &guardian, 101);
 
-    client.register_task(&admin, &1u64);
-    client.register_task(&admin, &2u64);
-    client.register_task(&admin, &3u64);
+    client.register_task(&admin, &1u64, &1u32);
+    client.register_task(&admin, &2u64, &1u32);
+    client.register_task(&admin, &3u64, &1u32);
 
     let ids = SorobanVec::from_array(&env, [1u64, 2u64, 3u64]);
     client.vote_batch(&guardian, &ids);
@@ -1601,7 +1601,7 @@ fn test_vote_batch_reverts_on_invalid_task() {
     let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
     lock_for_guardian(&env, &token, &client, &guardian, 101);
 
-    client.register_task(&admin, &10u64);
+    client.register_task(&admin, &10u64, &1u32);
 
     // One valid, one non-existent — entire batch must revert
     let ids = SorobanVec::from_array(&env, [10u64, 999u64]);
@@ -1622,9 +1622,9 @@ fn test_vote_batch_duplicate_vote_reverts() {
     let guardian = add_guardian_with_rep(&env, &client, &admin, 300);
     lock_for_guardian(&env, &token, &client, &guardian, 101);
 
-    client.register_task(&admin, &20u64);
-    client.register_task(&admin, &21u64);
-    client.register_task(&admin, &22u64);
+    client.register_task(&admin, &20u64, &1u32);
+    client.register_task(&admin, &21u64, &1u32);
+    client.register_task(&admin, &22u64, &1u32);
 
     // Vote once on task 20 first
     client.vote(&guardian, &20u64);
@@ -1651,8 +1651,8 @@ fn test_vote_batch_accumulates_weight_across_tasks() {
     lock_for_guardian(&env, &token, &client, &g1, 101);
     lock_for_guardian(&env, &token, &client, &g2, 101);
 
-    client.register_task(&admin, &30u64);
-    client.register_task(&admin, &31u64);
+    client.register_task(&admin, &30u64, &1u32);
+    client.register_task(&admin, &31u64, &1u32);
 
     // g1 votes on both tasks in one batch
     let ids = SorobanVec::from_array(&env, [30u64, 31u64]);
@@ -1691,7 +1691,7 @@ fn test_cancel_resolved_task_panics() {
     client.set_weight_threshold(&admin, &300u64);
 
     let g = add_guardian_with_rep(&env, &client, &admin, 300);
-    client.register_task(&admin, &1u64);
+    client.register_task(&admin, &1u64, &1u32);
     lock_for_guardian(&env, &token, &client, &g, 101);
     client.vote(&g, &1u64);
 
@@ -1710,10 +1710,48 @@ fn test_duplicate_vote_rejected_with_error() {
     client.set_weight_threshold(&admin, &300u64);
 
     let g = add_guardian_with_rep(&env, &client, &admin, 300);
-    client.register_task(&admin, &1u64);
+    client.register_task(&admin, &1u64, &1u32);
     lock_for_guardian(&env, &token, &client, &g, 101);
     client.vote(&g, &1u64);
 
     let result = client.try_vote(&g, &1u64);
     assert!(result.is_err());
+}
+
+// ─── Dynamic min_votes_required ─────────────────────────────────────
+
+#[test]
+fn test_dynamic_min_votes_unresolved_at_four_of_five() {
+    let (env, _contract_id, admin, token, client) = setup();
+
+    // Each guardian has enough reputation to satisfy weight_threshold alone,
+    // but the task requires 5 votes before it can resolve.
+    client.set_weight_threshold(&admin, &100u64);
+
+    let guardians: [Address; 5] =
+        core::array::from_fn(|_| add_guardian_with_rep(&env, &client, &admin, 100));
+
+    // Register task with min_votes_required = 5
+    client.register_task(&admin, &500u64, &5u32);
+
+    let task = client.get_task(&500u64).unwrap();
+    assert_eq!(task.min_votes_required, 5);
+
+    for g in guardians.iter().take(4) {
+        lock_for_guardian(&env, &token, &client, g, 101);
+        client.vote(g, &500u64);
+    }
+
+    // After 4 votes the weight threshold is met but min_votes_required is not — still unresolved.
+    let task = client.get_task(&500u64).unwrap();
+    assert_eq!(task.votes, 4);
+    assert!(!task.is_done, "task must remain unresolved at 4 of 5 required votes");
+
+    // Fifth vote satisfies min_votes_required → task resolves.
+    lock_for_guardian(&env, &token, &client, &guardians[4], 101);
+    client.vote(&guardians[4], &500u64);
+
+    let task = client.get_task(&500u64).unwrap();
+    assert_eq!(task.votes, 5);
+    assert!(task.is_done, "task must resolve once 5 votes are cast");
 }
