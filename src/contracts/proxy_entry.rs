@@ -30,6 +30,11 @@ impl VeroContract {
             .instance()
             .set(&DataKey::LockThreshold, &lock_threshold);
         env.storage().instance().set(&DataKey::Paused, &false);
+        
+        // Grant Admin role to the deployer/initial admin
+        let admin_role_key = DataKey::RoleAssignment(admin.clone(), crate::types::Role::Admin);
+        env.storage().instance().set(&admin_role_key, &true);
+        
         env.storage().instance().extend_ttl(100_000, 100_000);
         events::emit_contract_initialized(&env, &admin);
         Ok(())
@@ -40,7 +45,7 @@ impl VeroContract {
     }
 
     pub fn toggle_pause(env: Env, admin: Address) -> Result<(), ContractError> {
-        admin.require_auth();
+        crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::EmergencyManager)?;
         let current = env
             .storage()
             .instance()
@@ -53,14 +58,14 @@ impl VeroContract {
     }
 
     pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
-        admin.require_auth();
+        crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::EmergencyManager)?;
         env.storage().instance().set(&DataKey::Paused, &true);
         events::emit_pause_toggled(&env, true);
         Ok(())
     }
 
     pub fn unpause(env: Env, admin: Address) -> Result<(), ContractError> {
-        admin.require_auth();
+        crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::EmergencyManager)?;
         env.storage().instance().set(&DataKey::Paused, &false);
         events::emit_pause_toggled(&env, false);
         Ok(())
@@ -136,7 +141,7 @@ impl VeroContract {
         admin: Address,
         threshold: u64,
     ) -> Result<(), ContractError> {
-        admin.require_auth();
+        crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::ConfigManager)?;
         env.storage()
             .instance()
             .set(&DataKey::WeightThreshold, &threshold);
@@ -152,23 +157,18 @@ impl VeroContract {
     }
 
     pub fn set_vault_address(env: Env, admin: Address, vault: Address) {
-        admin.require_auth();
+        // Use try-catch pattern via unwrap since this function has no Result return
+        crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::ConfigManager)
+            .unwrap();
         env.storage().instance().set(&DataKey::VaultAddress, &vault);
         events::emit_vault_set(&env, &admin, &vault);
     }
 
-    pub fn register_task(env: Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
+    pub fn register_task(env: Env, admin: Address, task_id: u64, min_votes_required: u32) -> Result<(), ContractError> {
         circuit_breaker::require_not_paused(&env)?;
-        let stored_admin: Address = env
-            .storage()
-            .instance()
-            .get(&DataKey::Admin)
-            .ok_or(ContractError::NotInitialized)?;
-        if admin != stored_admin {
-            return Err(ContractError::NotAuthorized);
-        }
+        crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::TaskManager)?;
         let task_ids = soroban_sdk::vec![&env, task_id];
-        task::register_tasks(&env, admin, task_ids)
+        task::register_tasks(&env, admin, task_ids, min_votes_required)
     }
 
     pub fn cancel_task(env: Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
@@ -185,14 +185,7 @@ impl VeroContract {
     /// Reverts with `TaskNotFound` if no task exists, `TaskNotTerminal` if the
     /// task is still active, and `NotAuthorized` if the caller is not the admin.
     pub fn purge_task(env: Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
-        let stored_admin: Address = env
-            .storage()
-            .instance()
-            .get(&DataKey::Admin)
-            .ok_or(ContractError::NotInitialized)?;
-        if admin != stored_admin {
-            return Err(ContractError::NotAuthorized);
-        }
+        crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::TaskManager)?;
         task::purge_task(&env, admin, task_id)
     }
 
@@ -230,7 +223,7 @@ impl VeroContract {
         task_id: u64,
     ) -> Result<(), ContractError> {
         circuit_breaker::require_not_paused(&env)?;
-        admin.require_auth();
+        crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::TreasuryManager)?;
 
         let result = drips::start_drips_stream(&env, drips_address, contributor.clone(), task_id);
 
@@ -261,7 +254,7 @@ impl VeroContract {
     }
 
     pub fn upgrade_contract(env: Env, admin: Address, new_wasm_hash: BytesN<32>) {
-        admin.require_auth();
+        crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::Admin).unwrap();
         env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
         events::emit_contract_upgraded(&env, &admin, &new_wasm_hash);
     }
@@ -286,15 +279,7 @@ impl VeroContract {
         signers: Vec<Address>,
         threshold: u32,
     ) -> Result<(), ContractError> {
-        let stored_admin: Address = env
-            .storage()
-            .instance()
-            .get(&DataKey::Admin)
-            .ok_or(ContractError::NotInitialized)?;
-        if admin != stored_admin {
-            return Err(ContractError::NotAuthorized);
-        }
-        admin.require_auth();
+        crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::Admin)?;
 
         if threshold == 0 || threshold > signers.len() {
             return Err(ContractError::InvalidUpgradeConfig);
@@ -396,7 +381,7 @@ impl VeroContract {
             .instance()
             .get(&DataKey::UpgradeThreshold)
             .unwrap_or(0u32);
-        events::emit_upgrade_approved(&env, &signer, approvals.len() as u32, threshold);
+        events::emit_upgrade_approved(&env, &signer, approvals.len(), threshold);
 
         Ok(())
     }
@@ -449,7 +434,7 @@ impl VeroContract {
             .instance()
             .get(&DataKey::UpgradeThreshold)
             .unwrap_or(0u32);
-        events::emit_upgrade_approved(&env, &signer, approvals.len() as u32, threshold);
+        events::emit_upgrade_approved(&env, &signer, approvals.len(), threshold);
 
         Ok(())
     }
@@ -504,15 +489,7 @@ impl VeroContract {
     /// * `NotAuthorized` — Caller is not the contract admin.
     /// * `NoPendingUpgrade` — No upgrade has been proposed.
     pub fn cancel_upgrade(env: Env, admin: Address) -> Result<(), ContractError> {
-        let stored_admin: Address = env
-            .storage()
-            .instance()
-            .get(&DataKey::Admin)
-            .ok_or(ContractError::NotInitialized)?;
-        if admin != stored_admin {
-            return Err(ContractError::NotAuthorized);
-        }
-        admin.require_auth();
+        crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::Admin)?;
 
         if !env.storage().instance().has(&DataKey::PendingUpgradeWasm) {
             return Err(ContractError::NoPendingUpgrade);
@@ -563,8 +540,8 @@ impl VeroContract {
     ) -> Result<(), ContractError> {
         for call in calls.iter() {
             match call {
-                BatchCall::RegisterTask(admin, task_id) => {
-                    Self::register_task(env.clone(), admin, task_id)?
+                BatchCall::RegisterTask(admin, task_id, min_votes_required) => {
+                    Self::register_task(env.clone(), admin, task_id, min_votes_required)?
                 }
                 BatchCall::CancelTask(admin, task_id) => {
                     Self::cancel_task(env.clone(), admin, task_id)?
@@ -621,5 +598,39 @@ impl VeroContract {
             }
         }
         Ok(())
+    }
+
+    // ─── Role-based access control ──────────────────────────────────────
+
+    /// Grant a role to a target address. Only callable by Admin role holders.
+    ///
+    /// # Errors
+    /// * `NotAuthorized` — Caller does not hold the Admin role.
+    pub fn grant_role(
+        env: Env,
+        caller: Address,
+        target: Address,
+        role: crate::types::Role,
+    ) -> Result<(), ContractError> {
+        crate::contracts::rbac::grant_role_internal(&env, &caller, &target, role)
+    }
+
+    /// Revoke a role from a target address. Only callable by Admin role holders.
+    ///
+    /// # Errors
+    /// * `NotAuthorized` — Caller does not hold the Admin role.
+    /// * `LastAdminRemovalBlocked` — Cannot revoke the last remaining Admin role.
+    pub fn revoke_role(
+        env: Env,
+        caller: Address,
+        target: Address,
+        role: crate::types::Role,
+    ) -> Result<(), ContractError> {
+        crate::contracts::rbac::revoke_role_internal(&env, &caller, &target, role)
+    }
+
+    /// Check whether an address holds a specific role.
+    pub fn has_role(env: Env, address: Address, role: crate::types::Role) -> bool {
+        crate::contracts::rbac::has_role(&env, &address, role)
     }
 }

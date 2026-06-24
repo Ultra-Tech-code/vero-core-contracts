@@ -14,13 +14,13 @@ fn is_terminal(task: &Task) -> bool {
 
 const MAX_REGISTER_TASK_BATCH_SIZE: u32 = 32;
 
-pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>) -> Result<(), ContractError> {
+pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>, min_votes_required: u32) -> Result<(), ContractError> {
     if task_ids.is_empty() || task_ids.len() > MAX_REGISTER_TASK_BATCH_SIZE {
         return Err(ContractError::BatchTooLarge);
     }
 
     validation::validate_admin_address(env, &admin)?;
-    admin.require_auth();
+    crate::contracts::rbac::require_role(env, &admin, crate::types::Role::TaskManager)?;
 
     let mut seen_task_ids = Vec::new(env);
     for task_id in task_ids.iter() {
@@ -57,9 +57,9 @@ pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>) -> Result<(
             resolved_at: 0,
             total_weight_accrued: 0,
             is_cancelled: false,
+            min_votes_required,
         };
         storage::set_active_task(env, &task);
-        all_tasks.push_back(task_id);
         events::emit_task_registered(env, &admin, task_id);
     }
 
@@ -73,7 +73,7 @@ pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>) -> Result<(
 
 pub fn cancel_task(env: &Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
     validation::validate_admin_address(env, &admin)?;
-    admin.require_auth();
+    crate::contracts::rbac::require_role(env, &admin, crate::types::Role::TaskManager)?;
     validation::validate_task_id(task_id)?;
 
     let mut task = storage::get_active_task(env, task_id).ok_or(ContractError::TaskNotFound)?;
@@ -109,7 +109,7 @@ pub fn get_task(env: &Env, task_id: u64) -> Option<Task> {
 ///
 /// Admin authentication is required.
 pub fn purge_task(env: &Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
-    admin.require_auth();
+    crate::contracts::rbac::require_role(env, &admin, crate::types::Role::TaskManager)?;
 
     // Resolve from active storage first, then fall back to archived.
     let task = storage::get_active_task(env, task_id)

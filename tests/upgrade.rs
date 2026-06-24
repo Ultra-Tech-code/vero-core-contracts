@@ -574,7 +574,7 @@ fn test_upgrade_logic_successful() {
     let (env, admin, _token, client) = setup_without_signers();
 
     // We register a task to ensure state is present
-    client.register_task(&admin, &1u64);
+    client.register_task(&admin, &1u64, &1u32);
     assert!(client.get_task(&1u64).is_some());
 
     // Verify the function signature is correct

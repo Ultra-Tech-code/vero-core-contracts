@@ -1,5 +1,7 @@
 use soroban_sdk::{contracttype, Address};
 
+use crate::types::Role;
+
 /// Canonical storage key definitions for the Vero contract.
 ///
 /// All contract state is stored under these typed keys in instance storage.

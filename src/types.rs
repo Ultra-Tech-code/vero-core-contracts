@@ -31,6 +31,7 @@ pub struct Task {
     pub resolved_at: u64,
     pub total_weight_accrued: u64,
     pub is_cancelled: bool,
+    pub min_votes_required: u32,
 }
 
 #[contracttype]
@@ -44,23 +45,86 @@ pub struct RewardStream {
 
 #[contracttype]
 #[derive(Clone)]
-pub enum DataKey {
-    Guardian(Address),
-    Task(u64),
-    Voted(u64, Address), // (task_id, guardian)
-    Admin,
-    DripsAddress,
-    VaultAddress,
-    RewardStream(u64), // keyed by task_id
-    TokenAddress,
-    LockThreshold,
-    LockedBalance(Address),
-    Lock, // re-entrancy mutex
-    WeightThreshold,
-    Reputation(Address), // u64 reputation score for a guardian
-    FailureCount,        // circuit breaker failure counter
-    Paused,              // circuit breaker pause flag
-    StorageVersion,      // u32 storage schema version
+pub struct Snapshot {
+    pub timestamp: u64,
+    pub paused: bool,
+    pub failure_count: u32,
+    pub weight_threshold: u64,
+    pub admin: Option<Address>,
+    pub vault_address: Option<Address>,
+    pub drips_address: Option<Address>,
+    pub guardians: Map<Address, bool>,
+    pub reputations: Map<Address, u64>,
+    pub tasks: Map<u64, Task>,
+    pub votes: Map<(u64, Address), bool>,
+    pub reward_streams: Map<u64, RewardStream>,
+}
+
+/// A single call within a `batch_execute` transaction.
+#[contracttype]
+#[derive(Clone)]
+pub enum BatchCall {
+    RegisterTask(Address, u64, u32),
+    CancelTask(Address, u64),
+    Vote(Address, u64),
+    AddGuardian(Address, Address),
+    RemoveGuardian(Address, Address),
+    SetReputation(Address, Address, u64),
+    LockTokens(Address, i128),
+    RequestUnlock(Address),
+    UnlockTokens(Address),
+    ResignGuardian(Address),
+    SetWeightThreshold(Address, u64),
+    SetVaultAddress(Address, Address),
+    StartRewardStream(Address, Address, Address, u64),
+    TogglePause(Address),
+    Pause(Address),
+    Unpause(Address),
+    RecordFailure(Address),
+    ResetCircuitBreaker(Address),
+    /// Set multi-sig upgrade signers and threshold.
+    SetUpgradeSigners(Address, soroban_sdk::Vec<Address>, u32),
+    /// Propose a new upgrade WASM hash.
+    ProposeUpgrade(Address, BytesN<32>),
+    /// Approve a pending upgrade.
+    ApproveUpgrade(Address),
+    /// Execute the upgrade once threshold is met.
+    ExecuteUpgrade(Address),
+    /// Cancel a pending upgrade.
+    CancelUpgrade(Address),
+}
+
+/// Every public write operation exposed by VeroContract.
+#[contracttype]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Operation {
+    RegisterTask = 0,
+    Vote = 1,
+    AddGuardian = 2,
+    SetReputation = 3,
+    LockTokens = 4,
+    UnlockTokens = 5,
+    ResignGuardian = 6,
+    SetWeightThreshold = 7,
+    StartRewardStream = 8,
+    TogglePause = 9,
+    RecordFailure = 10,
+    ResetCircuitBreaker = 11,
+    UpgradeContract = 12,
+    RecordSnapshot = 13,
+    PurgeTask = 14,
+    /// `vote_batch` — vote on multiple tasks in one transaction.
+    VoteBatch = 15,
+    /// `set_upgrade_signers` — configure multi-sig upgrade signers.
+    SetUpgradeSigners = 16,
+    /// `propose_upgrade` — propose a new upgrade WASM hash.
+    ProposeUpgrade = 17,
+    /// `approve_upgrade` — approve a pending upgrade.
+    ApproveUpgrade = 18,
+    /// `execute_upgrade` — execute upgrade once threshold met.
+    ExecuteUpgrade = 19,
+    /// `cancel_upgrade` — cancel a pending upgrade.
+    CancelUpgrade = 20,
 }
 
 #[contracterror]
@@ -82,4 +146,29 @@ pub enum ContractError {
     WeightOverflow = 14,
     ContractPaused = 15,
     EscrowUnavailable = 16,
+    TaskCancelled = 17,
+    InvalidAddress = 18,
+    InvalidAmount = 19,
+    InvalidConfig = 20,
+    InvalidRange = 21,
+    BatchTooLarge = 22,
+    TaskNotFound = 23,
+    TaskAlreadyArchived = 24,
+    TaskNotStale = 25,
+    SnapshotNotFound = 26,
+    WithdrawalTimelockActive = 27,
+    TaskNotTerminal = 28,
+    InsufficientReputation = 29,
+    /// Caller is not authorized as a multi-sig upgrade signer.
+    NotUpgradeSigner = 30,
+    /// Not enough upgrade approvals collected yet.
+    UpgradeThresholdNotMet = 31,
+    /// No pending upgrade proposal to act on.
+    NoPendingUpgrade = 32,
+    /// Signer has already approved this upgrade proposal.
+    AlreadyApproved = 33,
+    /// Invalid multi-sig upgrade configuration (threshold > signers or zero).
+    InvalidUpgradeConfig = 34,
+    /// Cannot revoke the last remaining Admin role holder (would cause lockout).
+    LastAdminRemovalBlocked = 35,
 }

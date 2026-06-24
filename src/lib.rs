@@ -21,6 +21,9 @@ mod vault;
 use soroban_sdk::{contract, contractimpl, Address, Env};
 use types::{ContractError, DataKey, RewardStream};
 
+
+pub use contracts::proxy_entry::{VeroContract, VeroContractClient};
+pub use contracts::rbac::{grant_role_internal, has_role, require_role, revoke_role_internal};
 pub use drips::{get_reward_stream, start_drips_stream};
 pub use guardian::{add_guardian, is_guardian};
 pub use task::{get_task, register_task};

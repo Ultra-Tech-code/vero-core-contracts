@@ -170,7 +170,7 @@ pub(crate) fn process_vote(
         .get(&DataKey::WeightThreshold)
         .unwrap_or(DEFAULT_WEIGHT_THRESHOLD);
 
-    if t.total_weight_accrued >= weight_threshold && !t.is_done {
+    if t.total_weight_accrued >= weight_threshold && t.votes >= t.min_votes_required && !t.is_done {
         t.is_done = true;
         t.resolved_at = env.ledger().timestamp();
         events::emit_task_resolved(env, task_id, t.total_weight_accrued);
@@ -230,7 +230,7 @@ pub(crate) fn vote_inner(
         .get(&DataKey::WeightThreshold)
         .unwrap_or(DEFAULT_WEIGHT_THRESHOLD);
 
-    if t.total_weight_accrued >= weight_threshold && !t.is_done {
+    if t.total_weight_accrued >= weight_threshold && t.votes >= t.min_votes_required && !t.is_done {
         t.is_done = true;
         t.resolved_at = env.ledger().timestamp();
         events::emit_task_resolved(env, task_id, t.total_weight_accrued);

@@ -3,9 +3,12 @@ use soroban_sdk::{Address, Env};
 use crate::types::ContractError;
 
 pub const MAX_TASK_ID: u64 = u64::MAX / 2;
+#[allow(dead_code)]
 pub const MAX_TOKEN_AMOUNT: i128 = i128::MAX / 2;
+#[allow(dead_code)]
 pub const MAX_LOCK_THRESHOLD: i128 = MAX_TOKEN_AMOUNT - 1;
 pub const MAX_REPUTATION_SCORE: u64 = 1_000_000_000;
+#[allow(dead_code)]
 pub const MAX_WEIGHT_THRESHOLD: u64 = 1_000_000_000_000;
 
 pub fn validate_external_address(env: &Env, address: &Address) -> Result<(), ContractError> {
@@ -55,6 +58,7 @@ pub fn validate_task_id(task_id: u64) -> Result<(), ContractError> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn validate_token_amount(amount: i128) -> Result<(), ContractError> {
     if amount <= 0 {
         return Err(ContractError::InvalidAmount);
@@ -65,6 +69,7 @@ pub fn validate_token_amount(amount: i128) -> Result<(), ContractError> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn validate_lock_threshold(lock_threshold: i128) -> Result<(), ContractError> {
     if lock_threshold <= 0 {
         return Err(ContractError::InvalidAmount);
@@ -85,6 +90,7 @@ pub fn validate_reputation_score(score: u64) -> Result<(), ContractError> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn validate_weight_threshold(threshold: u64) -> Result<(), ContractError> {
     if threshold == 0 {
         return Err(ContractError::InvalidAmount);
