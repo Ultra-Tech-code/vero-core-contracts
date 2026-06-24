@@ -168,4 +168,6 @@ pub enum ContractError {
     AlreadyApproved = 33,
     /// Invalid multi-sig upgrade configuration (threshold > signers or zero).
     InvalidUpgradeConfig = 34,
+    /// Cannot revoke the last remaining Admin role holder (would cause lockout).
+    LastAdminRemovalBlocked = 35,
 }

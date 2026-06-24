@@ -91,12 +91,15 @@ pub const COST_RECORD_SNAPSHOT: u64 = 1_830_000;
 pub const COST_PURGE_TASK: u64 = 2_030_000;
 
 /// `vote_batch` (batch size = 5):
-///   base + circuit-breaker read + auth + 5 reads (token, threshold, balance, weight, weight_threshold)
-///   + reentrancy lock/unlock (2 writes)
-///   + per-task: voted read, task read, voted write, task write, voter append write, event (×5)
-///   + conditional vault calls (×5)
-///   ~ `500_000 + 50_000 + 5*50_000 + 2*150_000 + 5*(50_000 + 50_000 + 150_000 + 150_000 + 150_000 + 30_000 + 500_000)`
-///   ~ `500_000 + 50_000 + 250_000 + 300_000 + 5*1_080_000`
+///
+/// base + circuit-breaker read + auth + 5 reads (token, threshold, balance, weight, weight_threshold)
+/// + reentrancy lock/unlock (2 writes)
+/// + per-task: voted read, task read, voted write, task write, voter append write, event (×5)
+/// + conditional vault calls (×5)
+///
+/// ~ `500_000 + 50_000 + 5*50_000 + 2*150_000 + 5*(50_000 + 50_000 + 150_000 + 150_000 + 150_000 + 30_000 + 500_000)`
+///
+/// ~ `500_000 + 50_000 + 250_000 + 300_000 + 5*1_080_000`
 pub const COST_VOTE_BATCH: u64 = 6_500_000;
 
 /// `set_upgrade_signers`: base + write (UpgradeSigners) + write (UpgradeThreshold).

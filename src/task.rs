@@ -20,7 +20,7 @@ pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>) -> Result<(
     }
 
     validation::validate_admin_address(env, &admin)?;
-    admin.require_auth();
+    crate::contracts::rbac::require_role(env, &admin, crate::types::Role::TaskManager)?;
 
     let mut seen_task_ids = Vec::new(env);
     for task_id in task_ids.iter() {
@@ -59,7 +59,6 @@ pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>) -> Result<(
             is_cancelled: false,
         };
         storage::set_active_task(env, &task);
-        all_tasks.push_back(task_id);
         events::emit_task_registered(env, &admin, task_id);
     }
 
@@ -73,7 +72,7 @@ pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>) -> Result<(
 
 pub fn cancel_task(env: &Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
     validation::validate_admin_address(env, &admin)?;
-    admin.require_auth();
+    crate::contracts::rbac::require_role(env, &admin, crate::types::Role::TaskManager)?;
     validation::validate_task_id(task_id)?;
 
     let mut task = storage::get_active_task(env, task_id).ok_or(ContractError::TaskNotFound)?;
@@ -116,7 +115,7 @@ pub fn get_all_tasks(env: &Env) -> Vec<u64> {
 ///
 /// Admin authentication is required.
 pub fn purge_task(env: &Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
-    admin.require_auth();
+    crate::contracts::rbac::require_role(env, &admin, crate::types::Role::TaskManager)?;
 
     // Resolve from active storage first, then fall back to archived.
     let task = storage::get_active_task(env, task_id)
