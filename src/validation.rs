@@ -55,6 +55,7 @@ pub fn validate_task_id(task_id: u64) -> Result<(), ContractError> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn validate_token_amount(amount: i128) -> Result<(), ContractError> {
     if amount <= 0 {
         return Err(ContractError::InvalidAmount);
@@ -65,6 +66,7 @@ pub fn validate_token_amount(amount: i128) -> Result<(), ContractError> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn validate_lock_threshold(lock_threshold: i128) -> Result<(), ContractError> {
     if lock_threshold <= 0 {
         return Err(ContractError::InvalidAmount);
@@ -85,6 +87,7 @@ pub fn validate_reputation_score(score: u64) -> Result<(), ContractError> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn validate_weight_threshold(threshold: u64) -> Result<(), ContractError> {
     if threshold == 0 {
         return Err(ContractError::InvalidAmount);

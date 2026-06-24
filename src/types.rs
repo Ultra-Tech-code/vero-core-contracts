@@ -1,63 +1,103 @@
+#![allow(missing_docs)]
+
 use soroban_sdk::{contracterror, contracttype, Address, BytesN, Map};
 
 pub use crate::contracts::storage_layout::DataKey;
 
+/// Standard contract error codes.
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 pub enum Error {
+    /// Action requires admin authorization.
     NotAdmin = 1,
+    /// Action requires guardian authorization.
     NotGuardian = 2,
+    /// The task has already been resolved.
     TaskAlreadyResolved = 3,
+    /// The voter has already voted on this task.
     DuplicateVote = 4,
 }
 
+/// A request to withdraw locked tokens.
 #[contracttype]
 #[derive(Clone)]
 pub struct WithdrawalRequest {
+    /// Unique identifier for the withdrawal request.
     pub id: u64,
+    /// The recipient address of the withdrawn tokens.
     pub recipient: Address,
+    /// The amount of tokens to withdraw.
     pub amount: i128,
+    /// The ledger sequence number at which the withdrawal was requested.
     pub requested_at_ledger: u32,
+    /// Whether the withdrawal has been executed.
     pub is_executed: bool,
+    /// Whether the withdrawal has been cancelled.
     pub is_cancelled: bool,
 }
 
+/// A voting task to be resolved by guardians.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Task {
+    /// Unique identifier for the task.
     pub id: u64,
+    /// Total number of votes cast.
     pub votes: u32,
+    /// Whether the task has been resolved.
     pub is_done: bool,
+    /// Timestamp when the task was resolved.
     pub resolved_at: u64,
+    /// Cumulative voting weight accrued from guardian votes.
     pub total_weight_accrued: u64,
+    /// Whether the task was cancelled.
     pub is_cancelled: bool,
 }
 
+/// A stream setup to distribute rewards for completing a task.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RewardStream {
+    /// The associated task identifier.
     pub task_id: u64,
+    /// The contributor address receiving the rewards.
     pub contributor: Address,
+    /// The address of the Drips contract.
     pub drips_contract: Address,
+    /// Whether the reward stream is active.
     pub active: bool,
 }
 
+/// A snapshot of the contract state at a specific point in time.
 #[contracttype]
 #[derive(Clone)]
 pub struct Snapshot {
+    /// Timestamp when the snapshot was recorded.
     pub timestamp: u64,
+    /// Whether the contract was paused.
     pub paused: bool,
+    /// Number of failures recorded in the circuit breaker.
     pub failure_count: u32,
+    /// The weight threshold required to resolve a task.
     pub weight_threshold: u64,
+    /// The admin address, if set.
     pub admin: Option<Address>,
+    /// The vault address, if set.
     pub vault_address: Option<Address>,
+    /// The drips contract address, if set.
     pub drips_address: Option<Address>,
+    /// Map of registered guardian addresses.
     pub guardians: Map<Address, bool>,
+    /// Map of guardian reputation scores.
     pub reputations: Map<Address, u64>,
+    /// Map of task structures by their ID.
     pub tasks: Map<u64, Task>,
+    /// Map tracking votes by (task_id, guardian_address).
     pub votes: Map<(u64, Address), bool>,
+    /// Map of reward streams by task ID.
     pub reward_streams: Map<u64, RewardStream>,
 }
+
 
 /// A single call within a `batch_execute` transaction.
 #[contracttype]

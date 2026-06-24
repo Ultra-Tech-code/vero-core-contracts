@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 use soroban_sdk::{symbol_short, Address, Env};
 
 pub fn emit_task_resolved(env: &Env, task_id: u64, weight: u64) {
