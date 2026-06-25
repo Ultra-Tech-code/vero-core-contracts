@@ -122,6 +122,10 @@ pub const COST_EXECUTE_UPGRADE: u64 = 2_980_000;
 /// `500_000 + 3*150_000 + 30_000`
 pub const COST_CANCEL_UPGRADE: u64 = 980_000;
 
+/// `emergency_recover`: base + role read + token read + token transfer + event.
+/// `500_000 + 50_000 + 50_000 + 500_000 + 30_000`
+pub const COST_EMERGENCY_RECOVER: u64 = 1_130_000;
+
 // ─── Public mapping function ───────────────────────────────────────────────────
 
 /// Returns the estimated instruction-unit cost for a given [`Operation`].
@@ -139,26 +143,27 @@ pub const COST_CANCEL_UPGRADE: u64 = 980_000;
 ///   excluded — their cost is negligible and bounded by the base invocation fee.
 pub fn get_estimated_cost(op: Operation) -> u64 {
     match op {
-        Operation::RegisterTask        => COST_REGISTER_TASK,
-        Operation::Vote                => COST_VOTE,
-        Operation::AddGuardian         => COST_ADD_GUARDIAN,
-        Operation::SetReputation       => COST_SET_REPUTATION,
-        Operation::LockTokens          => COST_LOCK_TOKENS,
-        Operation::UnlockTokens        => COST_UNLOCK_TOKENS,
-        Operation::ResignGuardian      => COST_RESIGN_GUARDIAN,
-        Operation::SetWeightThreshold  => COST_SET_WEIGHT_THRESHOLD,
-        Operation::StartRewardStream   => COST_START_REWARD_STREAM,
-        Operation::TogglePause         => COST_TOGGLE_PAUSE,
-        Operation::RecordFailure       => COST_RECORD_FAILURE,
+        Operation::RegisterTask => COST_REGISTER_TASK,
+        Operation::Vote => COST_VOTE,
+        Operation::AddGuardian => COST_ADD_GUARDIAN,
+        Operation::SetReputation => COST_SET_REPUTATION,
+        Operation::LockTokens => COST_LOCK_TOKENS,
+        Operation::UnlockTokens => COST_UNLOCK_TOKENS,
+        Operation::ResignGuardian => COST_RESIGN_GUARDIAN,
+        Operation::SetWeightThreshold => COST_SET_WEIGHT_THRESHOLD,
+        Operation::StartRewardStream => COST_START_REWARD_STREAM,
+        Operation::TogglePause => COST_TOGGLE_PAUSE,
+        Operation::RecordFailure => COST_RECORD_FAILURE,
         Operation::ResetCircuitBreaker => COST_RESET_CIRCUIT_BREAKER,
-        Operation::UpgradeContract     => COST_UPGRADE_CONTRACT,
-        Operation::RecordSnapshot      => COST_RECORD_SNAPSHOT,
-        Operation::PurgeTask           => COST_PURGE_TASK,
-        Operation::VoteBatch           => COST_VOTE_BATCH,
-        Operation::SetUpgradeSigners   => COST_SET_UPGRADE_SIGNERS,
-        Operation::ProposeUpgrade      => COST_PROPOSE_UPGRADE,
-        Operation::ApproveUpgrade      => COST_APPROVE_UPGRADE,
-        Operation::ExecuteUpgrade      => COST_EXECUTE_UPGRADE,
-        Operation::CancelUpgrade       => COST_CANCEL_UPGRADE,
+        Operation::UpgradeContract => COST_UPGRADE_CONTRACT,
+        Operation::RecordSnapshot => COST_RECORD_SNAPSHOT,
+        Operation::PurgeTask => COST_PURGE_TASK,
+        Operation::VoteBatch => COST_VOTE_BATCH,
+        Operation::SetUpgradeSigners => COST_SET_UPGRADE_SIGNERS,
+        Operation::ProposeUpgrade => COST_PROPOSE_UPGRADE,
+        Operation::ApproveUpgrade => COST_APPROVE_UPGRADE,
+        Operation::ExecuteUpgrade => COST_EXECUTE_UPGRADE,
+        Operation::CancelUpgrade => COST_CANCEL_UPGRADE,
+        Operation::EmergencyRecover => COST_EMERGENCY_RECOVER,
     }
 }

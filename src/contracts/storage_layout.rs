@@ -17,6 +17,7 @@ pub enum DataKey {
     Voted(u64, Address),
     TaskVoters(u64),
     Admin,
+    RoleAssignment(Address, Role),
     DripsAddress,
     VaultAddress,
     RewardStream(u64),
