@@ -13,7 +13,6 @@ use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, Vec};
 #[contract]
 pub struct VeroContract;
 
-
 #[contractimpl]
 impl VeroContract {
     pub fn initialize(
@@ -37,11 +36,14 @@ impl VeroContract {
             .instance()
             .set(&DataKey::LockThreshold, &lock_threshold);
         env.storage().instance().set(&DataKey::Paused, &false);
-        
+
         // Grant Admin role to the deployer/initial admin
         let admin_role_key = DataKey::RoleAssignment(admin.clone(), crate::types::Role::Admin);
         env.storage().instance().set(&admin_role_key, &true);
-        
+        let emergency_role_key =
+            DataKey::RoleAssignment(admin.clone(), crate::types::Role::EmergencyManager);
+        env.storage().instance().set(&emergency_role_key, &true);
+
         env.storage().instance().extend_ttl(100_000, 100_000);
         events::emit_contract_initialized(&env, &admin);
         Ok(())
@@ -148,6 +150,7 @@ impl VeroContract {
         admin: Address,
         threshold: u64,
     ) -> Result<(), ContractError> {
+        circuit_breaker::require_not_paused(&env)?;
         crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::ConfigManager)?;
         env.storage()
             .instance()
@@ -164,6 +167,7 @@ impl VeroContract {
     }
 
     pub fn set_vault_address(env: Env, admin: Address, vault: Address) {
+        circuit_breaker::require_not_paused(&env).unwrap();
         // Use try-catch pattern via unwrap since this function has no Result return
         crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::ConfigManager)
             .unwrap();
@@ -171,7 +175,12 @@ impl VeroContract {
         events::emit_vault_set(&env, &admin, &vault);
     }
 
-    pub fn register_task(env: Env, admin: Address, task_id: u64, min_votes_required: u32) -> Result<(), ContractError> {
+    pub fn register_task(
+        env: Env,
+        admin: Address,
+        task_id: u64,
+        min_votes_required: u32,
+    ) -> Result<(), ContractError> {
         circuit_breaker::require_not_paused(&env)?;
         crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::TaskManager)?;
         let task_ids = soroban_sdk::vec![&env, task_id];
@@ -192,6 +201,7 @@ impl VeroContract {
     /// Reverts with `TaskNotFound` if no task exists, `TaskNotTerminal` if the
     /// task is still active, and `NotAuthorized` if the caller is not the admin.
     pub fn purge_task(env: Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
+        circuit_breaker::require_not_paused(&env)?;
         crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::TaskManager)?;
         task::purge_task(&env, admin, task_id)
     }
@@ -213,6 +223,7 @@ impl VeroContract {
     }
 
     pub fn archive_task(env: Env, task_id: u64) -> Result<(), ContractError> {
+        circuit_breaker::require_not_paused(&env)?;
         storage::archive_task(&env, task_id)?;
         events::emit_task_archived(&env, task_id);
         Ok(())
@@ -262,7 +273,8 @@ impl VeroContract {
 
     pub fn upgrade_contract(env: Env, admin: Address, new_wasm_hash: BytesN<32>) {
         crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::Admin).unwrap();
-        env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
+        env.deployer()
+            .update_current_contract_wasm(new_wasm_hash.clone());
         events::emit_contract_upgraded(&env, &admin, &new_wasm_hash);
     }
 
@@ -293,7 +305,9 @@ impl VeroContract {
         }
 
         // Clear any pending upgrade when reconfiguring
-        env.storage().instance().remove(&DataKey::PendingUpgradeWasm);
+        env.storage()
+            .instance()
+            .remove(&DataKey::PendingUpgradeWasm);
         env.storage()
             .instance()
             .remove(&DataKey::PendingUpgradeApprovals);
@@ -477,7 +491,9 @@ impl VeroContract {
 
         // Clean up pending state BEFORE upgrade (after upgrade the contract
         // code is replaced and further cleanup may not run).
-        env.storage().instance().remove(&DataKey::PendingUpgradeWasm);
+        env.storage()
+            .instance()
+            .remove(&DataKey::PendingUpgradeWasm);
         env.storage()
             .instance()
             .remove(&DataKey::PendingUpgradeApprovals);
@@ -518,6 +534,7 @@ impl VeroContract {
     }
 
     pub fn record_snapshot(env: Env) -> Result<(), ContractError> {
+        circuit_breaker::require_not_paused(&env)?;
         logic::record_snapshot(&env)
     }
 
@@ -583,15 +600,9 @@ impl VeroContract {
                 BatchCall::ProposeUpgrade(signer, hash) => {
                     Self::propose_upgrade(env.clone(), signer, hash)?
                 }
-                BatchCall::ApproveUpgrade(signer) => {
-                    Self::approve_upgrade(env.clone(), signer)?
-                }
-                BatchCall::ExecuteUpgrade(_signer) => {
-                    Self::execute_upgrade(env.clone())?
-                }
-                BatchCall::CancelUpgrade(admin) => {
-                    Self::cancel_upgrade(env.clone(), admin)?
-                }
+                BatchCall::ApproveUpgrade(signer) => Self::approve_upgrade(env.clone(), signer)?,
+                BatchCall::ExecuteUpgrade(_signer) => Self::execute_upgrade(env.clone())?,
+                BatchCall::CancelUpgrade(admin) => Self::cancel_upgrade(env.clone(), admin)?,
                 BatchCall::StartRewardStream(admin, drips, contributor, task_id) => {
                     Self::start_reward_stream(env.clone(), admin, drips, contributor, task_id)?
                 }

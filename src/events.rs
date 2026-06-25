@@ -37,12 +37,29 @@ pub fn emit_reward_stream_failed(env: &Env, task_id: u64, contributor: &Address)
 /// Event data: `failure_count`
 pub fn emit_circuit_breaker_triggered(env: &Env, failure_count: u32) {
     env.events()
-        .publish((symbol_short!("snapshot"),), timestamp);
+        .publish((symbol_short!("cb_trip"),), failure_count);
+}
+
+pub fn emit_role_granted(env: &Env, caller: &Address, target: &Address, role: u8) {
+    env.events().publish(
+        (symbol_short!("role_gr"),),
+        (caller.clone(), target.clone(), role),
+    );
+}
+
+pub fn emit_role_revoked(env: &Env, caller: &Address, target: &Address, role: u8) {
+    env.events().publish(
+        (symbol_short!("role_rv"),),
+        (caller.clone(), target.clone(), role),
+    );
+}
+
+pub fn emit_task_cancelled(env: &Env, task_id: u64) {
+    env.events().publish((symbol_short!("cancel"),), task_id);
 }
 
 pub fn emit_task_purged(env: &Env, task_id: u64) {
-    env.events()
-        .publish((symbol_short!("purged"),), task_id);
+    env.events().publish((symbol_short!("purged"),), task_id);
 }
 
 pub fn emit_contract_initialized(env: &Env, admin: &Address) {
@@ -58,10 +75,8 @@ pub fn emit_guardian_added(env: &Env, admin: &Address, guardian: &Address) {
 }
 
 pub fn emit_guardian_removed(env: &Env, admin: &Address, guardian: &Address) {
-    env.events().publish(
-        (symbol_short!("gd_rm"),),
-        (admin.clone(), guardian.clone()),
-    );
+    env.events()
+        .publish((symbol_short!("gd_rm"),), (admin.clone(), guardian.clone()));
 }
 
 pub fn emit_reputation_set(env: &Env, admin: &Address, guardian: &Address, score: u64) {
@@ -92,29 +107,22 @@ pub fn emit_guardian_resigned(env: &Env, guardian: &Address) {
 }
 
 pub fn emit_threshold_set(env: &Env, admin: &Address, threshold: u64) {
-    env.events().publish(
-        (symbol_short!("th_set"),),
-        (admin.clone(), threshold),
-    );
+    env.events()
+        .publish((symbol_short!("th_set"),), (admin.clone(), threshold));
 }
 
 pub fn emit_vault_set(env: &Env, admin: &Address, vault: &Address) {
-    env.events().publish(
-        (symbol_short!("vault"),),
-        (admin.clone(), vault.clone()),
-    );
+    env.events()
+        .publish((symbol_short!("vault"),), (admin.clone(), vault.clone()));
 }
 
 pub fn emit_task_registered(env: &Env, admin: &Address, task_id: u64) {
-    env.events().publish(
-        (symbol_short!("reg"),),
-        (admin.clone(), task_id),
-    );
+    env.events()
+        .publish((symbol_short!("reg"),), (admin.clone(), task_id));
 }
 
 pub fn emit_task_archived(env: &Env, task_id: u64) {
-    env.events()
-        .publish((symbol_short!("archived"),), task_id);
+    env.events().publish((symbol_short!("archived"),), task_id);
 }
 
 pub fn emit_circuit_breaker_reset(env: &Env, admin: &Address) {

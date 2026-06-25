@@ -4,6 +4,18 @@ use soroban_sdk::{contracterror, contracttype, Address, BytesN, Map};
 
 pub use crate::contracts::storage_layout::DataKey;
 
+/// Role identifiers used by contract-level access control.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord)]
+pub enum Role {
+    Admin = 1,
+    GuardianManager = 2,
+    TaskManager = 3,
+    ConfigManager = 4,
+    EmergencyManager = 5,
+    TreasuryManager = 6,
+}
+
 /// Standard contract error codes.
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -98,7 +110,6 @@ pub struct Snapshot {
     /// Map of reward streams by task ID.
     pub reward_streams: Map<u64, RewardStream>,
 }
-
 
 /// A single call within a `batch_execute` transaction.
 #[contracttype]
