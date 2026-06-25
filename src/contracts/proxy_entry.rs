@@ -156,6 +156,7 @@ impl VeroContract {
         admin: Address,
         threshold: u64,
     ) -> Result<(), ContractError> {
+        circuit_breaker::require_not_paused(&env)?;
         crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::ConfigManager)?;
         env.storage()
             .instance()
@@ -172,6 +173,7 @@ impl VeroContract {
     }
 
     pub fn set_vault_address(env: Env, admin: Address, vault: Address) {
+        circuit_breaker::require_not_paused(&env).unwrap();
         // Use try-catch pattern via unwrap since this function has no Result return
         crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::ConfigManager)
             .unwrap();
@@ -205,6 +207,7 @@ impl VeroContract {
     /// Reverts with `TaskNotFound` if no task exists, `TaskNotTerminal` if the
     /// task is still active, and `NotAuthorized` if the caller is not the admin.
     pub fn purge_task(env: Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
+        circuit_breaker::require_not_paused(&env)?;
         crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::TaskManager)?;
         task::purge_task(&env, admin, task_id)
     }
@@ -226,6 +229,7 @@ impl VeroContract {
     }
 
     pub fn archive_task(env: Env, task_id: u64) -> Result<(), ContractError> {
+        circuit_breaker::require_not_paused(&env)?;
         storage::archive_task(&env, task_id)?;
         events::emit_task_archived(&env, task_id);
         Ok(())
@@ -536,6 +540,7 @@ impl VeroContract {
     }
 
     pub fn record_snapshot(env: Env) -> Result<(), ContractError> {
+        circuit_breaker::require_not_paused(&env)?;
         logic::record_snapshot(&env)
     }
 

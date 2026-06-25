@@ -1,5 +1,5 @@
-use crate::types::{ContractError, DataKey, Role};
 use crate::events;
+use crate::types::{ContractError, DataKey, Role};
 use soroban_sdk::{Address, Env};
 
 /// Check whether an address holds a specific role.
@@ -29,32 +29,32 @@ pub fn count_role_holders(env: &Env, role: Role) -> u32 {
     // This is acceptable because:
     // 1. Admin role should have very few holders (typically 1-5)
     // 2. This function is only called during revoke_role, not on hot paths
-    
+
     let mut count = 0u32;
-    
+
     // Check the original admin address
     if let Some(admin) = env.storage().instance().get::<_, Address>(&DataKey::Admin) {
         if has_role(env, &admin, role) {
             count += 1;
         }
     }
-    
+
     // Check all guardians (they could have been granted roles)
     let all_guardians: soroban_sdk::Vec<Address> = env
         .storage()
         .instance()
         .get(&DataKey::AllGuardians)
         .unwrap_or(soroban_sdk::Vec::new(env));
-    
+
     for guardian in all_guardians.iter() {
         if has_role(env, &guardian, role) {
             count += 1;
         }
     }
-    
+
     // For a production system with many role holders, consider maintaining
     // a separate AllRoleHolders(Role) index updated on grant/revoke.
-    
+
     count
 }
 
@@ -66,12 +66,12 @@ pub fn grant_role_internal(
     role: Role,
 ) -> Result<(), ContractError> {
     require_role(env, caller, Role::Admin)?;
-    
+
     let key = DataKey::RoleAssignment(target.clone(), role);
     env.storage().instance().set(&key, &true);
-    
+
     events::emit_role_granted(env, caller, target, role as u8);
-    
+
     Ok(())
 }
 
@@ -84,7 +84,7 @@ pub fn revoke_role_internal(
     role: Role,
 ) -> Result<(), ContractError> {
     require_role(env, caller, Role::Admin)?;
-    
+
     // Admin lockout prevention: if revoking Admin role, ensure at least one remains
     if role == Role::Admin {
         let admin_count = count_role_holders(env, Role::Admin);
@@ -92,11 +92,11 @@ pub fn revoke_role_internal(
             return Err(ContractError::LastAdminRemovalBlocked);
         }
     }
-    
+
     let key = DataKey::RoleAssignment(target.clone(), role);
     env.storage().instance().remove(&key);
-    
+
     events::emit_role_revoked(env, caller, target, role as u8);
-    
+
     Ok(())
 }
