@@ -101,6 +101,13 @@ pub fn emit_tokens_unlocked(env: &Env, guardian: &Address, amount: i128) {
         .publish((symbol_short!("tk_unlk"),), (guardian.clone(), amount));
 }
 
+pub fn emit_emergency_recovery(env: &Env, admin: &Address, recipient: &Address, amount: i128) {
+    env.events().publish(
+        (symbol_short!("em_rec"),),
+        (admin.clone(), recipient.clone(), amount),
+    );
+}
+
 pub fn emit_guardian_resigned(env: &Env, guardian: &Address) {
     env.events()
         .publish((symbol_short!("gd_res"),), (guardian.clone(),));

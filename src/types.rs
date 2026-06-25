@@ -133,6 +133,7 @@ pub enum BatchCall {
     Unpause(Address),
     RecordFailure(Address),
     ResetCircuitBreaker(Address),
+    EmergencyRecover(Address, Address, i128),
     /// Set multi-sig upgrade signers and threshold.
     SetUpgradeSigners(Address, soroban_sdk::Vec<Address>, u32),
     /// Propose a new upgrade WASM hash.
@@ -176,6 +177,8 @@ pub enum Operation {
     ExecuteUpgrade = 19,
     /// `cancel_upgrade` — cancel a pending upgrade.
     CancelUpgrade = 20,
+    /// `emergency_recover` — emergency token recovery while normal flows are unavailable.
+    EmergencyRecover = 21,
 }
 
 #[contracterror]

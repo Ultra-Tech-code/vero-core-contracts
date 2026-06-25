@@ -40,9 +40,6 @@ impl VeroContract {
         // Grant Admin role to the deployer/initial admin
         let admin_role_key = DataKey::RoleAssignment(admin.clone(), crate::types::Role::Admin);
         env.storage().instance().set(&admin_role_key, &true);
-        let emergency_role_key =
-            DataKey::RoleAssignment(admin.clone(), crate::types::Role::EmergencyManager);
-        env.storage().instance().set(&emergency_role_key, &true);
 
         env.storage().instance().extend_ttl(100_000, 100_000);
         events::emit_contract_initialized(&env, &admin);
@@ -139,6 +136,15 @@ impl VeroContract {
 
     pub fn unlock_tokens(env: Env, guardian: Address) -> Result<(), ContractError> {
         logic::unlock_tokens(&env, guardian)
+    }
+
+    pub fn emergency_recover(
+        env: Env,
+        admin: Address,
+        recipient: Address,
+        amount: i128,
+    ) -> Result<(), ContractError> {
+        logic::emergency_recover(&env, admin, recipient, amount)
     }
 
     pub fn resign_guardian(env: Env, guardian: Address) -> Result<(), ContractError> {
@@ -612,6 +618,9 @@ impl VeroContract {
                 BatchCall::RecordFailure(_admin) => Self::record_failure(env.clone()),
                 BatchCall::ResetCircuitBreaker(admin) => {
                     Self::reset_circuit_breaker(env.clone(), admin)
+                }
+                BatchCall::EmergencyRecover(admin, recipient, amount) => {
+                    Self::emergency_recover(env.clone(), admin, recipient, amount)?
                 }
             }
         }
