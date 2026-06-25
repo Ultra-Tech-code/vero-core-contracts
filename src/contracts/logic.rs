@@ -60,6 +60,28 @@ pub(crate) fn unlock_tokens(env: &Env, guardian: Address) -> Result<(), Contract
     Ok(())
 }
 
+pub(crate) fn emergency_recover(
+    env: &Env,
+    admin: Address,
+    recipient: Address,
+    amount: i128,
+) -> Result<(), ContractError> {
+    crate::contracts::rbac::require_role(env, &admin, crate::types::Role::EmergencyManager)?;
+    crate::validation::validate_external_address(env, &recipient)?;
+    crate::validation::validate_token_amount(amount)?;
+
+    let token: Address = env
+        .storage()
+        .instance()
+        .get(&DataKey::TokenAddress)
+        .ok_or(ContractError::NotInitialized)?;
+    let contract_address = env.current_contract_address();
+    let token_client = soroban_sdk::token::Client::new(env, &token);
+    token_client.transfer(&contract_address, &recipient, &amount);
+    events::emit_emergency_recovery(env, &admin, &recipient, amount);
+    Ok(())
+}
+
 pub(crate) fn resign_guardian(env: &Env, guardian: Address) -> Result<(), ContractError> {
     circuit_breaker::require_not_paused(env)?;
     guardian.require_auth();

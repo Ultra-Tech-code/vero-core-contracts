@@ -4,6 +4,18 @@ use soroban_sdk::{contracterror, contracttype, Address, BytesN, Map};
 
 pub use crate::contracts::storage_layout::DataKey;
 
+/// Role identifiers used by contract-level access control.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord)]
+pub enum Role {
+    Admin = 1,
+    GuardianManager = 2,
+    TaskManager = 3,
+    ConfigManager = 4,
+    EmergencyManager = 5,
+    TreasuryManager = 6,
+}
+
 /// Standard contract error codes.
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -99,7 +111,6 @@ pub struct Snapshot {
     pub reward_streams: Map<u64, RewardStream>,
 }
 
-
 /// A single call within a `batch_execute` transaction.
 #[contracttype]
 #[derive(Clone)]
@@ -122,6 +133,7 @@ pub enum BatchCall {
     Unpause(Address),
     RecordFailure(Address),
     ResetCircuitBreaker(Address),
+    EmergencyRecover(Address, Address, i128),
     /// Set multi-sig upgrade signers and threshold.
     SetUpgradeSigners(Address, soroban_sdk::Vec<Address>, u32),
     /// Propose a new upgrade WASM hash.
@@ -165,6 +177,8 @@ pub enum Operation {
     ExecuteUpgrade = 19,
     /// `cancel_upgrade` — cancel a pending upgrade.
     CancelUpgrade = 20,
+    /// `emergency_recover` — emergency token recovery while normal flows are unavailable.
+    EmergencyRecover = 21,
 }
 
 #[contracterror]
