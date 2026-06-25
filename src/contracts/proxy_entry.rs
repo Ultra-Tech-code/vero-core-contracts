@@ -13,6 +13,25 @@ use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, Vec};
 #[contract]
 pub struct VeroContract;
 
+fn is_strictly_sorted_addresses(addrs: &Vec<Address>) -> bool {
+    if addrs.len() < 2 {
+        return true;
+    }
+
+    let mut prev = addrs.get(0).unwrap();
+    let mut i = 1;
+    while i < addrs.len() {
+        let current = addrs.get(i).unwrap();
+        if prev >= current {
+            return false;
+        }
+        prev = current;
+        i += 1;
+    }
+
+    true
+}
+
 #[contractimpl]
 impl VeroContract {
     pub fn initialize(
@@ -300,7 +319,7 @@ impl VeroContract {
     ) -> Result<(), ContractError> {
         crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::Admin)?;
 
-        if threshold == 0 || threshold > signers.len() {
+        if threshold == 0 || threshold > signers.len() || !is_strictly_sorted_addresses(&signers) {
             return Err(ContractError::InvalidUpgradeConfig);
         }
 
@@ -443,6 +462,11 @@ impl VeroContract {
 
         if approvals.contains(signer.clone()) {
             return Err(ContractError::AlreadyApproved);
+        }
+        if let Some(previous) = approvals.last() {
+            if previous >= signer {
+                return Err(ContractError::InvalidUpgradeConfig);
+            }
         }
 
         approvals.push_back(signer.clone());
