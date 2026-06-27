@@ -17,7 +17,7 @@ fn is_terminal(task: &Task) -> bool {
 const MAX_REGISTER_TASK_BATCH_SIZE: u32 = 32;
 
 /// Registers a batch of new voting tasks in the contract storage.
-pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>) -> Result<(), ContractError> {
+pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>, min_votes_required: u32) -> Result<(), ContractError> {
     if task_ids.is_empty() || task_ids.len() > MAX_REGISTER_TASK_BATCH_SIZE {
         return Err(ContractError::BatchTooLarge);
     }

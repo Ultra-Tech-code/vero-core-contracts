@@ -1,16 +1,22 @@
 use soroban_sdk::Env;
 
 use crate::events;
-use crate::guards;
 use crate::types::{ContractError, DataKey};
 use crate::validation;
 
 const FAILURE_THRESHOLD: u32 = 50;
 
 /// Returns `Err(ContractPaused)` if the contract is currently paused.
-/// Delegates to the dedicated `guards` module.
 pub fn require_not_paused(env: &Env) -> Result<(), ContractError> {
-    guards::require_not_paused(env)
+    if env
+        .storage()
+        .instance()
+        .get(&DataKey::Paused)
+        .unwrap_or(false)
+    {
+        return Err(ContractError::ContractPaused);
+    }
+    Ok(())
 }
 
 /// Increments the failure counter. Triggers an emergency stop if the

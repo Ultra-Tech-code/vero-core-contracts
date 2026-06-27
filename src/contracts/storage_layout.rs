@@ -41,4 +41,5 @@ pub enum DataKey {
     UpgradeThreshold,
     PendingUpgradeWasm,
     PendingUpgradeApprovals,
+    StorageVersion,
 }
