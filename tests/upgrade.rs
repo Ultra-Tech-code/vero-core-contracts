@@ -25,9 +25,15 @@ fn setup() -> (Env, Address, Address, VeroContractClient<'static>) {
 }
 
 fn generate_signers(env: &Env, n: u32) -> Vec<Address> {
-    let mut signers = Vec::new(env);
+    let mut generated = std::vec::Vec::new();
     for _ in 0..n {
-        signers.push_back(Address::generate(env));
+        generated.push(Address::generate(env));
+    }
+    generated.sort();
+
+    let mut signers = Vec::new(env);
+    for signer in generated {
+        signers.push_back(signer);
     }
     signers
 }
