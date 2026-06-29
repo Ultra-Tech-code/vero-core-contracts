@@ -664,10 +664,10 @@ impl VeroContract {
                     Self::emergency_recover(env.clone(), admin, recipient, amount)?
                 }
                 BatchCall::SetFeeBps(admin, bps) => {
-                    Self::set_fee_bps(env.clone(), admin, *bps)?
+                    Self::set_fee_bps(env.clone(), admin, bps)?
                 }
                 BatchCall::SetTreasuryAddress(admin, treasury) => {
-                    Self::set_treasury_address(env.clone(), admin, treasury.clone())?
+                    Self::set_treasury_address(env.clone(), admin, treasury)?
                 }
             }
         }

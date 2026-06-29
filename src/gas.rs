@@ -126,6 +126,9 @@ pub const COST_CANCEL_UPGRADE: u64 = 980_000;
 /// `500_000 + 50_000 + 50_000 + 500_000 + 30_000`
 pub const COST_EMERGENCY_RECOVER: u64 = 1_130_000;
 
+pub const COST_SET_FEE_BPS: u64 = 650_000;
+pub const COST_SET_TREASURY_ADDRESS: u64 = 650_000;
+
 // ─── Public mapping function ───────────────────────────────────────────────────
 
 /// Returns the estimated instruction-unit cost for a given [`Operation`].
@@ -165,5 +168,7 @@ pub fn get_estimated_cost(op: Operation) -> u64 {
         Operation::ExecuteUpgrade => COST_EXECUTE_UPGRADE,
         Operation::CancelUpgrade => COST_CANCEL_UPGRADE,
         Operation::EmergencyRecover => COST_EMERGENCY_RECOVER,
+        Operation::SetFeeBps => COST_SET_FEE_BPS,
+        Operation::SetTreasuryAddress => COST_SET_TREASURY_ADDRESS,
     }
 }
