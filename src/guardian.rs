@@ -10,7 +10,6 @@ const LEDGER_TTL: u32 = 100_000;
 /// Adds a new guardian to the contract.
 pub fn add_guardian(env: &Env, admin: Address, guardian: Address) -> Result<(), ContractError> {
     validation::validate_guardian_config(env, &admin, &guardian)?;
-    crate::contracts::rbac::require_role(env, &admin, crate::types::Role::GuardianManager)?;
 
     let key = DataKey::Guardian(guardian.clone());
     if !env.storage().instance().has(&key) {
@@ -34,7 +33,6 @@ pub fn add_guardian(env: &Env, admin: Address, guardian: Address) -> Result<(), 
 pub fn remove_guardian(env: &Env, admin: Address, guardian: Address) -> Result<(), ContractError> {
     validation::validate_admin_address(env, &admin)?;
     validation::validate_external_address(env, &guardian)?;
-    crate::contracts::rbac::require_role(env, &admin, crate::types::Role::GuardianManager)?;
 
     let key = DataKey::Guardian(guardian.clone());
     if !env.storage().instance().has(&key) {

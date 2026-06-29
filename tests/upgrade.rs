@@ -2,9 +2,9 @@
 
 use soroban_sdk::{
     testutils::{Address as _, Events as _},
-    Address, BytesN, Env, Vec, TryIntoVal,
+    Address, BytesN, Env, TryIntoVal, Vec,
 };
-use vero_core_contracts::{ContractError, VeroContractClient, Role};
+use vero_core_contracts::{ContractError, Role, VeroContractClient};
 
 fn setup() -> (Env, Address, Address, Address, VeroContractClient<'static>) {
     let env = Env::default();
@@ -25,7 +25,6 @@ fn setup() -> (Env, Address, Address, Address, VeroContractClient<'static>) {
     client.grant_role(&admin, &admin, &Role::ConfigManager);
     client.grant_role(&admin, &admin, &Role::EmergencyManager);
     client.grant_role(&admin, &admin, &Role::TreasuryManager);
-
 
     (env, contract_id, admin, token_addr, client)
 }
@@ -108,7 +107,10 @@ fn test_full_multi_sig_upgrade_flow() {
     let result = client.try_execute_upgrade();
     // The error should come from the runtime (deployer), not from our contract,
     // meaning our multi-sig checks passed successfully.
-    assert!(result.is_err(), "execute_upgrade should attempt deploy and fail at runtime");
+    assert!(
+        result.is_err(),
+        "execute_upgrade should attempt deploy and fail at runtime"
+    );
 
     // Verify pending state was cleaned up before the deployer call
     // (We can't query pending state directly since there's no view function for it,
@@ -406,7 +408,10 @@ fn test_propose_same_hash_adds_approval() {
 
     // Threshold 3 met — execute should proceed past our checks
     let exec_result = client.try_execute_upgrade();
-    assert!(exec_result.is_err(), "should attempt deploy and fail at runtime");
+    assert!(
+        exec_result.is_err(),
+        "should attempt deploy and fail at runtime"
+    );
 }
 
 // ─── Events emitted correctly ─────────────────────────────────────
@@ -429,7 +434,7 @@ fn test_upgrade_events_emitted() {
     let events = env.events().all();
     // Should have at least 3 events: up_sig, up_prop, up_app
     assert!(events.len() >= 3, "expected at least 3 upgrade events");
-    
+
     let mut symbols = std::vec::Vec::new();
     for e in events.iter() {
         if let Some(topic) = e.1.get(0) {
@@ -532,15 +537,8 @@ fn test_batch_execute_with_upgrade_operations() {
 
     let calls = soroban_sdk::vec![
         &env,
-        vero_core_contracts::BatchCall::SetUpgradeSigners(
-            admin.clone(),
-            signers.clone(),
-            2u32,
-        ),
-        vero_core_contracts::BatchCall::ProposeUpgrade(
-            signers.get(0).unwrap(),
-            wasm_hash.clone(),
-        ),
+        vero_core_contracts::BatchCall::SetUpgradeSigners(admin.clone(), signers.clone(), 2u32,),
+        vero_core_contracts::BatchCall::ProposeUpgrade(signers.get(0).unwrap(), wasm_hash.clone(),),
         vero_core_contracts::BatchCall::ApproveUpgrade(signers.get(1).unwrap()),
     ];
 
@@ -590,7 +588,10 @@ fn test_single_signer_succeeds_immediately() {
 
     // Single signer means threshold is met immediately on propose
     let exec_result = client.try_execute_upgrade();
-    assert!(exec_result.is_err(), "should attempt deploy and fail at runtime");
+    assert!(
+        exec_result.is_err(),
+        "should attempt deploy and fail at runtime"
+    );
 }
 
 // ─── Legacy upgrade test preserved ─────────────────────────────────

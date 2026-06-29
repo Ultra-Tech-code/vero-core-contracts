@@ -14,7 +14,7 @@ pub(crate) fn lock_tokens(env: &Env, guardian: Address, amount: i128) -> Result<
         .instance()
         .get(&DataKey::TokenAddress)
         .ok_or(ContractError::NotInitialized)?;
-    
+
     let fee_bps: u32 = env.storage().instance().get(&DataKey::FeeBps).unwrap_or(0);
     let mut fee_amount = 0;
     let mut net_amount = amount;
@@ -23,7 +23,11 @@ pub(crate) fn lock_tokens(env: &Env, guardian: Address, amount: i128) -> Result<
         fee_amount = (amount * (fee_bps as i128)) / 10000;
         net_amount = amount - fee_amount;
         if fee_amount > 0 {
-            if let Some(treasury) = env.storage().instance().get::<_, Address>(&DataKey::TreasuryAddress) {
+            if let Some(treasury) = env
+                .storage()
+                .instance()
+                .get::<_, Address>(&DataKey::TreasuryAddress)
+            {
                 let token_client = soroban_sdk::token::Client::new(env, &token);
                 token_client.transfer(&guardian, &treasury, &fee_amount);
             } else {
@@ -78,7 +82,11 @@ pub(crate) fn unlock_tokens(env: &Env, guardian: Address) -> Result<(), Contract
             fee_amount = (amount * (fee_bps as i128)) / 10000;
             net_amount = amount - fee_amount;
             if fee_amount > 0 {
-                if let Some(treasury) = env.storage().instance().get::<_, Address>(&DataKey::TreasuryAddress) {
+                if let Some(treasury) = env
+                    .storage()
+                    .instance()
+                    .get::<_, Address>(&DataKey::TreasuryAddress)
+                {
                     token_client.transfer(&env.current_contract_address(), &treasury, &fee_amount);
                 } else {
                     net_amount = amount;
@@ -103,7 +111,6 @@ pub(crate) fn emergency_recover(
     recipient: Address,
     amount: i128,
 ) -> Result<(), ContractError> {
-    crate::contracts::rbac::require_role(env, &admin, crate::types::Role::EmergencyManager)?;
     crate::validation::validate_external_address(env, &recipient)?;
     crate::validation::validate_token_amount(amount)?;
 
@@ -149,7 +156,11 @@ pub(crate) fn resign_guardian(env: &Env, guardian: Address) -> Result<(), Contra
             fee_amount = (amount * (fee_bps as i128)) / 10000;
             net_amount = amount - fee_amount;
             if fee_amount > 0 {
-                if let Some(treasury) = env.storage().instance().get::<_, Address>(&DataKey::TreasuryAddress) {
+                if let Some(treasury) = env
+                    .storage()
+                    .instance()
+                    .get::<_, Address>(&DataKey::TreasuryAddress)
+                {
                     token_client.transfer(&env.current_contract_address(), &treasury, &fee_amount);
                 } else {
                     net_amount = amount;

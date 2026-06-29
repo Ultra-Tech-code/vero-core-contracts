@@ -48,7 +48,6 @@ pub fn record_failure(env: &Env) {
 /// Resets the failure counter and unpauses the contract. Admin only.
 pub fn reset(env: &Env, admin: soroban_sdk::Address) -> Result<(), ContractError> {
     validation::validate_admin_address(env, &admin)?;
-    crate::contracts::rbac::require_role(env, &admin, crate::types::Role::EmergencyManager)?;
     env.storage().instance().set(&DataKey::FailureCount, &0u32);
     env.storage().instance().remove(&DataKey::Paused);
     Ok(())

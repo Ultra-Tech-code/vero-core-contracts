@@ -1,9 +1,6 @@
 #![cfg(test)]
 
-use soroban_sdk::{
-    testutils::Address as _,
-    Address, Env,
-};
+use soroban_sdk::{testutils::Address as _, Address, Env};
 use vero_core_contracts::{Role, VeroContractClient};
 
 const LOCK_THRESHOLD: i128 = 100;
@@ -36,7 +33,7 @@ fn setup() -> (Env, Address, Address, VeroContractClient<'static>) {
 #[test]
 fn test_initialize_grants_admin_role_to_deployer() {
     let (_env, admin, _token, client) = setup();
-    
+
     // The deployer should have been granted the Admin role during initialize
     assert!(client.has_role(&admin, &Role::Admin));
 }
@@ -47,9 +44,9 @@ fn test_initialize_grants_admin_role_to_deployer() {
 fn test_admin_can_grant_guardian_manager_role() {
     let (env, admin, _token, client) = setup();
     let guardian_manager = Address::generate(&env);
-    
+
     client.grant_role(&admin, &guardian_manager, &Role::GuardianManager);
-    
+
     assert!(client.has_role(&guardian_manager, &Role::GuardianManager));
 }
 
@@ -57,9 +54,9 @@ fn test_admin_can_grant_guardian_manager_role() {
 fn test_admin_can_grant_task_manager_role() {
     let (env, admin, _token, client) = setup();
     let task_manager = Address::generate(&env);
-    
+
     client.grant_role(&admin, &task_manager, &Role::TaskManager);
-    
+
     assert!(client.has_role(&task_manager, &Role::TaskManager));
 }
 
@@ -67,9 +64,9 @@ fn test_admin_can_grant_task_manager_role() {
 fn test_admin_can_grant_config_manager_role() {
     let (env, admin, _token, client) = setup();
     let config_manager = Address::generate(&env);
-    
+
     client.grant_role(&admin, &config_manager, &Role::ConfigManager);
-    
+
     assert!(client.has_role(&config_manager, &Role::ConfigManager));
 }
 
@@ -77,9 +74,9 @@ fn test_admin_can_grant_config_manager_role() {
 fn test_admin_can_grant_emergency_manager_role() {
     let (env, admin, _token, client) = setup();
     let emergency_manager = Address::generate(&env);
-    
+
     client.grant_role(&admin, &emergency_manager, &Role::EmergencyManager);
-    
+
     assert!(client.has_role(&emergency_manager, &Role::EmergencyManager));
 }
 
@@ -87,9 +84,9 @@ fn test_admin_can_grant_emergency_manager_role() {
 fn test_admin_can_grant_treasury_manager_role() {
     let (env, admin, _token, client) = setup();
     let treasury_manager = Address::generate(&env);
-    
+
     client.grant_role(&admin, &treasury_manager, &Role::TreasuryManager);
-    
+
     assert!(client.has_role(&treasury_manager, &Role::TreasuryManager));
 }
 
@@ -97,9 +94,9 @@ fn test_admin_can_grant_treasury_manager_role() {
 fn test_admin_can_grant_admin_role_to_another_address() {
     let (env, admin, _token, client) = setup();
     let new_admin = Address::generate(&env);
-    
+
     client.grant_role(&admin, &new_admin, &Role::Admin);
-    
+
     assert!(client.has_role(&new_admin, &Role::Admin));
 }
 
@@ -109,10 +106,10 @@ fn test_admin_can_grant_admin_role_to_another_address() {
 fn test_admin_can_revoke_role() {
     let (env, admin, _token, client) = setup();
     let manager = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::TaskManager);
     assert!(client.has_role(&manager, &Role::TaskManager));
-    
+
     client.revoke_role(&admin, &manager, &Role::TaskManager);
     assert!(!client.has_role(&manager, &Role::TaskManager));
 }
@@ -121,14 +118,14 @@ fn test_admin_can_revoke_role() {
 fn test_revoking_one_role_does_not_affect_other_roles() {
     let (env, admin, _token, client) = setup();
     let manager = Address::generate(&env);
-    
+
     // Grant two roles
     client.grant_role(&admin, &manager, &Role::TaskManager);
     client.grant_role(&admin, &manager, &Role::ConfigManager);
-    
+
     // Revoke one
     client.revoke_role(&admin, &manager, &Role::TaskManager);
-    
+
     // Other role should remain
     assert!(!client.has_role(&manager, &Role::TaskManager));
     assert!(client.has_role(&manager, &Role::ConfigManager));
@@ -139,13 +136,13 @@ fn test_revoking_one_role_does_not_affect_other_roles() {
 #[test]
 fn test_cannot_revoke_last_admin_role() {
     let (_env, admin, _token, client) = setup();
-    
+
     // Only one admin exists (the deployer)
     let result = client.try_revoke_role(&admin, &admin, &Role::Admin);
-    
+
     // Should fail with LastAdminRemovalBlocked
     assert!(result.is_err());
-    
+
     // Admin should still hold the role
     assert!(client.has_role(&admin, &Role::Admin));
 }
@@ -154,17 +151,17 @@ fn test_cannot_revoke_last_admin_role() {
 fn test_can_revoke_admin_when_multiple_admins_exist() {
     let (env, admin, _token, client) = setup();
     let second_admin = Address::generate(&env);
-    
+
     // Add them as a guardian so count_role_holders can find them
     client.add_guardian(&admin, &second_admin);
-    
+
     // Grant Admin role to a second address
     client.grant_role(&admin, &second_admin, &Role::Admin);
-    
+
     // Now we can revoke the first admin's role
     let result = client.try_revoke_role(&admin, &admin, &Role::Admin);
     assert!(result.is_ok());
-    
+
     // First admin should no longer have the role
     assert!(!client.has_role(&admin, &Role::Admin));
     // Second admin should still have it
@@ -178,10 +175,10 @@ fn test_non_admin_cannot_grant_role() {
     let (env, _admin, _token, client) = setup();
     let stranger = Address::generate(&env);
     let target = Address::generate(&env);
-    
+
     let result = client.try_grant_role(&stranger, &target, &Role::TaskManager);
     assert!(result.is_err());
-    
+
     // Role should not have been granted
     assert!(!client.has_role(&target, &Role::TaskManager));
 }
@@ -191,15 +188,15 @@ fn test_non_admin_cannot_revoke_role() {
     let (env, admin, _token, client) = setup();
     let manager = Address::generate(&env);
     let stranger = Address::generate(&env);
-    
+
     // Admin grants a role
     client.grant_role(&admin, &manager, &Role::TaskManager);
     assert!(client.has_role(&manager, &Role::TaskManager));
-    
+
     // Stranger tries to revoke it
     let result = client.try_revoke_role(&stranger, &manager, &Role::TaskManager);
     assert!(result.is_err());
-    
+
     // Role should still be held
     assert!(client.has_role(&manager, &Role::TaskManager));
 }
@@ -211,9 +208,9 @@ fn test_guardian_manager_can_add_guardian() {
     let (env, admin, _token, client) = setup();
     let manager = Address::generate(&env);
     let guardian = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::GuardianManager);
-    
+
     let result = client.try_add_guardian(&manager, &guardian);
     assert!(result.is_ok());
     assert!(client.is_guardian(&guardian));
@@ -224,7 +221,7 @@ fn test_non_guardian_manager_cannot_add_guardian() {
     let (env, _admin, _token, client) = setup();
     let stranger = Address::generate(&env);
     let guardian = Address::generate(&env);
-    
+
     let result = client.try_add_guardian(&stranger, &guardian);
     assert!(result.is_err());
     assert!(!client.is_guardian(&guardian));
@@ -235,10 +232,10 @@ fn test_guardian_manager_can_remove_guardian() {
     let (env, admin, _token, client) = setup();
     let manager = Address::generate(&env);
     let guardian = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::GuardianManager);
     client.add_guardian(&manager, &guardian);
-    
+
     let result = client.try_remove_guardian(&manager, &guardian);
     assert!(result.is_ok());
     assert!(!client.is_guardian(&guardian));
@@ -250,10 +247,10 @@ fn test_non_guardian_manager_cannot_remove_guardian() {
     let manager = Address::generate(&env);
     let stranger = Address::generate(&env);
     let guardian = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::GuardianManager);
     client.add_guardian(&manager, &guardian);
-    
+
     let result = client.try_remove_guardian(&stranger, &guardian);
     assert!(result.is_err());
     assert!(client.is_guardian(&guardian));
@@ -264,10 +261,10 @@ fn test_guardian_manager_can_set_reputation() {
     let (env, admin, _token, client) = setup();
     let manager = Address::generate(&env);
     let guardian = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::GuardianManager);
     client.add_guardian(&manager, &guardian);
-    
+
     let result = client.try_set_reputation(&manager, &guardian, &300);
     assert!(result.is_ok());
     assert_eq!(client.get_reputation(&guardian), Some(300));
@@ -279,10 +276,10 @@ fn test_non_guardian_manager_cannot_set_reputation() {
     let manager = Address::generate(&env);
     let stranger = Address::generate(&env);
     let guardian = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::GuardianManager);
     client.add_guardian(&manager, &guardian);
-    
+
     let result = client.try_set_reputation(&stranger, &guardian, &300);
     assert!(result.is_err());
     assert_eq!(client.get_reputation(&guardian), None);
@@ -294,9 +291,9 @@ fn test_non_guardian_manager_cannot_set_reputation() {
 fn test_task_manager_can_register_task() {
     let (env, admin, _token, client) = setup();
     let manager = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::TaskManager);
-    
+
     let result = client.try_register_task(&manager, &1, &1u32);
     assert!(result.is_ok());
     assert!(client.get_task(&1).is_some());
@@ -306,7 +303,7 @@ fn test_task_manager_can_register_task() {
 fn test_non_task_manager_cannot_register_task() {
     let (env, _admin, _token, client) = setup();
     let stranger = Address::generate(&env);
-    
+
     let result = client.try_register_task(&stranger, &1, &1u32);
     assert!(result.is_err());
     assert!(client.get_task(&1).is_none());
@@ -316,10 +313,10 @@ fn test_non_task_manager_cannot_register_task() {
 fn test_task_manager_can_cancel_task() {
     let (env, admin, _token, client) = setup();
     let manager = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::TaskManager);
     client.register_task(&manager, &1, &1u32);
-    
+
     let result = client.try_cancel_task(&manager, &1);
     assert!(result.is_ok());
     assert!(client.get_task(&1).unwrap().is_cancelled);
@@ -330,10 +327,10 @@ fn test_non_task_manager_cannot_cancel_task() {
     let (env, admin, _token, client) = setup();
     let manager = Address::generate(&env);
     let stranger = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::TaskManager);
     client.register_task(&manager, &1, &1u32);
-    
+
     let result = client.try_cancel_task(&stranger, &1);
     assert!(result.is_err());
     assert!(!client.get_task(&1).unwrap().is_cancelled);
@@ -343,11 +340,11 @@ fn test_non_task_manager_cannot_cancel_task() {
 fn test_task_manager_can_purge_task() {
     let (env, admin, _token, client) = setup();
     let manager = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::TaskManager);
     client.register_task(&manager, &1, &1u32);
     client.cancel_task(&manager, &1);
-    
+
     let result = client.try_purge_task(&manager, &1);
     assert!(result.is_ok());
     assert!(client.get_task(&1).is_none());
@@ -358,11 +355,11 @@ fn test_non_task_manager_cannot_purge_task() {
     let (env, admin, _token, client) = setup();
     let manager = Address::generate(&env);
     let stranger = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::TaskManager);
     client.register_task(&manager, &1, &1u32);
     client.cancel_task(&manager, &1);
-    
+
     let result = client.try_purge_task(&stranger, &1);
     assert!(result.is_err());
     assert!(client.get_task(&1).is_some());
@@ -374,9 +371,9 @@ fn test_non_task_manager_cannot_purge_task() {
 fn test_config_manager_can_set_weight_threshold() {
     let (env, admin, _token, client) = setup();
     let manager = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::ConfigManager);
-    
+
     let result = client.try_set_weight_threshold(&manager, &500);
     assert!(result.is_ok());
     assert_eq!(client.get_weight_threshold(), 500);
@@ -386,7 +383,7 @@ fn test_config_manager_can_set_weight_threshold() {
 fn test_non_config_manager_cannot_set_weight_threshold() {
     let (env, _admin, _token, client) = setup();
     let stranger = Address::generate(&env);
-    
+
     let result = client.try_set_weight_threshold(&stranger, &500);
     assert!(result.is_err());
     assert_eq!(client.get_weight_threshold(), 300); // default
@@ -397,9 +394,9 @@ fn test_config_manager_can_set_vault_address() {
     let (env, admin, _token, client) = setup();
     let manager = Address::generate(&env);
     let vault = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::ConfigManager);
-    
+
     client.set_vault_address(&manager, &vault);
     assert_eq!(client.get_snapshot().vault_address, Some(vault));
 }
@@ -410,9 +407,9 @@ fn test_config_manager_can_set_vault_address() {
 fn test_emergency_manager_can_pause() {
     let (env, admin, _token, client) = setup();
     let manager = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::EmergencyManager);
-    
+
     let result = client.try_pause(&manager);
     assert!(result.is_ok());
     assert!(client.is_paused());
@@ -422,7 +419,7 @@ fn test_emergency_manager_can_pause() {
 fn test_non_emergency_manager_cannot_pause() {
     let (env, _admin, _token, client) = setup();
     let stranger = Address::generate(&env);
-    
+
     let result = client.try_pause(&stranger);
     assert!(result.is_err());
     assert!(!client.is_paused());
@@ -432,10 +429,10 @@ fn test_non_emergency_manager_cannot_pause() {
 fn test_emergency_manager_can_unpause() {
     let (env, admin, _token, client) = setup();
     let manager = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::EmergencyManager);
     client.pause(&manager);
-    
+
     let result = client.try_unpause(&manager);
     assert!(result.is_ok());
     assert!(!client.is_paused());
@@ -446,10 +443,10 @@ fn test_non_emergency_manager_cannot_unpause() {
     let (env, admin, _token, client) = setup();
     let manager = Address::generate(&env);
     let stranger = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::EmergencyManager);
     client.pause(&manager);
-    
+
     let result = client.try_unpause(&stranger);
     assert!(result.is_err());
     assert!(client.is_paused());
@@ -459,12 +456,12 @@ fn test_non_emergency_manager_cannot_unpause() {
 fn test_emergency_manager_can_toggle_pause() {
     let (env, admin, _token, client) = setup();
     let manager = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::EmergencyManager);
-    
+
     client.toggle_pause(&manager);
     assert!(client.is_paused());
-    
+
     client.toggle_pause(&manager);
     assert!(!client.is_paused());
 }
@@ -473,15 +470,15 @@ fn test_emergency_manager_can_toggle_pause() {
 fn test_emergency_manager_can_reset_circuit_breaker() {
     let (env, admin, _token, client) = setup();
     let manager = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::EmergencyManager);
-    
+
     // Trip the circuit breaker
     for _ in 0..51 {
         client.record_failure();
     }
     assert!(client.is_paused());
-    
+
     client.reset_circuit_breaker(&manager);
     assert!(!client.is_paused());
 }
@@ -490,13 +487,13 @@ fn test_emergency_manager_can_reset_circuit_breaker() {
 fn test_non_emergency_manager_cannot_reset_circuit_breaker() {
     let (env, _admin, _token, client) = setup();
     let stranger = Address::generate(&env);
-    
+
     // Trip the circuit breaker
     for _ in 0..51 {
         client.record_failure();
     }
     assert!(client.is_paused());
-    
+
     let result = client.try_reset_circuit_breaker(&stranger);
     assert!(result.is_err());
     assert!(client.is_paused());
@@ -510,10 +507,10 @@ fn test_treasury_manager_role_required_for_reward_stream() {
     let manager = Address::generate(&env);
     let contributor = Address::generate(&env);
     let drips = Address::generate(&env);
-    
+
     client.grant_role(&admin, &manager, &Role::TreasuryManager);
     client.grant_role(&admin, &manager, &Role::TaskManager);
-    
+
     // Register and resolve a task
     client.register_task(&manager, &1, &1u32);
     let guardian = Address::generate(&env);
@@ -521,12 +518,12 @@ fn test_treasury_manager_role_required_for_reward_stream() {
     client.add_guardian(&admin, &guardian);
     client.set_reputation(&admin, &guardian, &300);
     client.set_weight_threshold(&admin, &1);
-    
+
     let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     token_client.mint(&guardian, &101);
     client.lock_tokens(&guardian, &101);
     client.vote(&guardian, &1);
-    
+
     // Treasury manager can start stream (will fail at drips call but passes auth)
     let result = client.try_start_reward_stream(&manager, &drips, &contributor, &1);
     // Result will be err due to drips call failure, but not due to auth
@@ -539,22 +536,22 @@ fn test_non_treasury_manager_cannot_start_reward_stream() {
     let stranger = Address::generate(&env);
     let contributor = Address::generate(&env);
     let drips = Address::generate(&env);
-    
+
     client.grant_role(&admin, &admin, &Role::TaskManager);
     client.grant_role(&admin, &admin, &Role::GuardianManager);
-    
+
     // Register and resolve a task
     client.register_task(&admin, &1, &1u32);
     let guardian = Address::generate(&env);
     client.add_guardian(&admin, &guardian);
     client.set_reputation(&admin, &guardian, &300);
     client.set_weight_threshold(&admin, &1);
-    
+
     let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token);
     token_client.mint(&guardian, &101);
     client.lock_tokens(&guardian, &101);
     client.vote(&guardian, &1);
-    
+
     let result = client.try_start_reward_stream(&stranger, &drips, &contributor, &1);
     assert!(result.is_err());
 }
@@ -565,7 +562,7 @@ fn test_non_treasury_manager_cannot_start_reward_stream() {
 fn test_admin_can_set_upgrade_signers() {
     let (env, admin, _token, client) = setup();
     let signers = soroban_sdk::vec![&env, Address::generate(&env)];
-    
+
     let result = client.try_set_upgrade_signers(&admin, &signers, &1);
     assert!(result.is_ok());
     assert_eq!(client.get_upgrade_threshold(), 1);
@@ -576,7 +573,7 @@ fn test_non_admin_cannot_set_upgrade_signers() {
     let (env, _admin, _token, client) = setup();
     let stranger = Address::generate(&env);
     let signers = soroban_sdk::vec![&env, Address::generate(&env)];
-    
+
     let result = client.try_set_upgrade_signers(&stranger, &signers, &1);
     assert!(result.is_err());
     assert_eq!(client.get_upgrade_threshold(), 0);
@@ -587,10 +584,10 @@ fn test_admin_can_cancel_upgrade() {
     let (env, admin, _token, client) = setup();
     let signers = soroban_sdk::vec![&env, Address::generate(&env)];
     let wasm_hash = soroban_sdk::BytesN::from_array(&env, &[1u8; 32]);
-    
+
     client.set_upgrade_signers(&admin, &signers, &1);
     client.propose_upgrade(&signers.get(0).unwrap(), &wasm_hash);
-    
+
     let result = client.try_cancel_upgrade(&admin);
     assert!(result.is_ok());
 }
@@ -601,10 +598,10 @@ fn test_non_admin_cannot_cancel_upgrade() {
     let stranger = Address::generate(&env);
     let signers = soroban_sdk::vec![&env, Address::generate(&env)];
     let wasm_hash = soroban_sdk::BytesN::from_array(&env, &[1u8; 32]);
-    
+
     client.set_upgrade_signers(&admin, &signers, &1);
     client.propose_upgrade(&signers.get(0).unwrap(), &wasm_hash);
-    
+
     let result = client.try_cancel_upgrade(&stranger);
     assert!(result.is_err());
 }
@@ -615,17 +612,17 @@ fn test_non_admin_cannot_cancel_upgrade() {
 fn test_address_can_hold_multiple_roles() {
     let (env, admin, _token, client) = setup();
     let multi_role_user = Address::generate(&env);
-    
+
     client.grant_role(&admin, &multi_role_user, &Role::TaskManager);
     client.grant_role(&admin, &multi_role_user, &Role::ConfigManager);
-    
+
     assert!(client.has_role(&multi_role_user, &Role::TaskManager));
     assert!(client.has_role(&multi_role_user, &Role::ConfigManager));
-    
+
     // Can use both roles
     client.register_task(&multi_role_user, &1, &1u32);
     client.set_weight_threshold(&multi_role_user, &400);
-    
+
     assert!(client.get_task(&1).is_some());
     assert_eq!(client.get_weight_threshold(), 400);
 }
@@ -637,29 +634,29 @@ fn test_backward_compatibility_admin_retains_all_powers() {
     let (env, admin, _token, client) = setup();
     let guardian = Address::generate(&env);
     let vault = Address::generate(&env);
-    
+
     // Admin should be able to do everything by granting themselves appropriate roles
     client.grant_role(&admin, &admin, &Role::GuardianManager);
     client.grant_role(&admin, &admin, &Role::TaskManager);
     client.grant_role(&admin, &admin, &Role::ConfigManager);
     client.grant_role(&admin, &admin, &Role::EmergencyManager);
-    
+
     // Guardian management
     client.add_guardian(&admin, &guardian);
     client.set_reputation(&admin, &guardian, &300);
-    
+
     // Task management
     client.register_task(&admin, &1, &1u32);
     client.cancel_task(&admin, &1);
-    
+
     // Configuration
     client.set_weight_threshold(&admin, &500);
     client.set_vault_address(&admin, &vault);
-    
+
     // Emergency controls
     client.pause(&admin);
     client.unpause(&admin);
-    
+
     // All operations should succeed
     assert!(client.is_guardian(&guardian));
     assert_eq!(client.get_reputation(&guardian), Some(300));

@@ -17,18 +17,15 @@ fn pack_vote_data(task_id: u64, weight: u64) -> u64 {
 /// Uses compact format: packs task_id and weight into single u64.
 pub fn emit_task_resolved(env: &Env, task_id: u64, total_weight: u64) {
     let packed = pack_vote_data(task_id, total_weight);
-    env.events()
-        .publish((symbol_short!("resolved"),), packed);
+    env.events().publish((symbol_short!("resolved"),), packed);
 }
 
 /// Emits an event when a guardian casts a weighted vote.
 /// Uses compact format: packs task_id and weight into single u64.
 pub fn emit_weighted_vote(env: &Env, task_id: u64, guardian: &Address, weight: u64) {
     let packed = pack_vote_data(task_id, weight);
-    env.events().publish(
-        (symbol_short!("wt_vote"),),
-        (guardian.clone(), packed),
-    );
+    env.events()
+        .publish((symbol_short!("wt_vote"),), (guardian.clone(), packed));
 }
 
 /// Emits an event when the pause state is toggled.
@@ -187,6 +184,5 @@ pub fn emit_upgrade_cancelled(env: &Env) {
 }
 
 pub fn emit_snapshot_recorded(env: &Env, timestamp: u64) {
-    env.events()
-        .publish((symbol_short!("snap"),), timestamp);
+    env.events().publish((symbol_short!("snap"),), timestamp);
 }

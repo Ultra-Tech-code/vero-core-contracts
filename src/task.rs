@@ -17,7 +17,12 @@ fn is_terminal(task: &Task) -> bool {
 const MAX_REGISTER_TASK_BATCH_SIZE: u32 = 32;
 
 /// Registers a batch of new voting tasks in the contract storage.
-pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>, min_votes_required: u32) -> Result<(), ContractError> {
+pub fn register_tasks(
+    env: &Env,
+    admin: Address,
+    task_ids: Vec<u64>,
+    min_votes_required: u32,
+) -> Result<(), ContractError> {
     if task_ids.is_empty() || task_ids.len() > MAX_REGISTER_TASK_BATCH_SIZE {
         return Err(ContractError::BatchTooLarge);
     }
@@ -40,7 +45,7 @@ pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>, min_votes_r
 
     reentrancy::lock(env)?;
 
-    let mut all_tasks: Vec<u64> = env
+    let all_tasks: Vec<u64> = env
         .storage()
         .instance()
         .get(&DataKey::AllTasks)
@@ -65,9 +70,7 @@ pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>, min_votes_r
         events::emit_task_registered(env, &admin, task_id);
     }
 
-    env.storage()
-        .instance()
-        .set(&DataKey::AllTasks, &all_tasks);
+    env.storage().instance().set(&DataKey::AllTasks, &all_tasks);
 
     reentrancy::unlock(env);
     Ok(())
@@ -118,8 +121,7 @@ pub fn get_all_tasks(env: &Env) -> Vec<u64> {
 /// (neither done nor cancelled).
 ///
 /// Admin authentication is required.
-pub fn purge_task(env: &Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
-
+pub fn purge_task(env: &Env, _admin: Address, task_id: u64) -> Result<(), ContractError> {
     // Resolve from active storage first, then fall back to archived.
     let task = storage::get_active_task(env, task_id)
         .or_else(|| storage::get_archived_task(env, task_id))
