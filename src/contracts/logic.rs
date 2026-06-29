@@ -14,11 +14,30 @@ pub(crate) fn lock_tokens(env: &Env, guardian: Address, amount: i128) -> Result<
         .instance()
         .get(&DataKey::TokenAddress)
         .ok_or(ContractError::NotInitialized)?;
+    
+    let fee_bps: u32 = env.storage().instance().get(&DataKey::FeeBps).unwrap_or(0);
+    let mut fee_amount = 0;
+    let mut net_amount = amount;
+
+    if fee_bps > 0 {
+        fee_amount = (amount * (fee_bps as i128)) / 10000;
+        net_amount = amount - fee_amount;
+        if fee_amount > 0 {
+            if let Some(treasury) = env.storage().instance().get::<_, Address>(&DataKey::TreasuryAddress) {
+                let token_client = soroban_sdk::token::Client::new(env, &token);
+                token_client.transfer(&guardian, &treasury, &fee_amount);
+            } else {
+                net_amount = amount;
+                fee_amount = 0;
+            }
+        }
+    }
+
     let token_client = soroban_sdk::token::Client::new(env, &token);
-    token_client.transfer(&guardian, &env.current_contract_address(), &amount);
+    token_client.transfer(&guardian, &env.current_contract_address(), &net_amount);
     let key = DataKey::LockedBalance(guardian.clone());
     let prev: i128 = env.storage().instance().get(&key).unwrap_or(0);
-    env.storage().instance().set(&key, &(prev + amount));
+    env.storage().instance().set(&key, &(prev + net_amount));
     events::emit_tokens_locked(env, &guardian, amount);
     Ok(())
 }
@@ -50,7 +69,25 @@ pub(crate) fn unlock_tokens(env: &Env, guardian: Address) -> Result<(), Contract
             .get(&DataKey::TokenAddress)
             .ok_or(ContractError::NotInitialized)?;
         let token_client = soroban_sdk::token::Client::new(env, &token);
-        token_client.transfer(&env.current_contract_address(), &guardian, &amount);
+
+        let fee_bps: u32 = env.storage().instance().get(&DataKey::FeeBps).unwrap_or(0);
+        let mut fee_amount = 0;
+        let mut net_amount = amount;
+
+        if fee_bps > 0 {
+            fee_amount = (amount * (fee_bps as i128)) / 10000;
+            net_amount = amount - fee_amount;
+            if fee_amount > 0 {
+                if let Some(treasury) = env.storage().instance().get::<_, Address>(&DataKey::TreasuryAddress) {
+                    token_client.transfer(&env.current_contract_address(), &treasury, &fee_amount);
+                } else {
+                    net_amount = amount;
+                    fee_amount = 0;
+                }
+            }
+        }
+
+        token_client.transfer(&env.current_contract_address(), &guardian, &net_amount);
         env.storage().instance().set(&key, &0i128);
     }
 
@@ -103,7 +140,25 @@ pub(crate) fn resign_guardian(env: &Env, guardian: Address) -> Result<(), Contra
             .get(&DataKey::TokenAddress)
             .ok_or(ContractError::NotInitialized)?;
         let token_client = soroban_sdk::token::Client::new(env, &token);
-        token_client.transfer(&env.current_contract_address(), &guardian, &amount);
+
+        let fee_bps: u32 = env.storage().instance().get(&DataKey::FeeBps).unwrap_or(0);
+        let mut fee_amount = 0;
+        let mut net_amount = amount;
+
+        if fee_bps > 0 {
+            fee_amount = (amount * (fee_bps as i128)) / 10000;
+            net_amount = amount - fee_amount;
+            if fee_amount > 0 {
+                if let Some(treasury) = env.storage().instance().get::<_, Address>(&DataKey::TreasuryAddress) {
+                    token_client.transfer(&env.current_contract_address(), &treasury, &fee_amount);
+                } else {
+                    net_amount = amount;
+                    fee_amount = 0;
+                }
+            }
+        }
+
+        token_client.transfer(&env.current_contract_address(), &guardian, &net_amount);
         env.storage().instance().set(&key, &0i128);
     }
 
