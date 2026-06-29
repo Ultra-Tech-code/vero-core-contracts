@@ -1,20 +1,23 @@
 #![cfg(test)]
 
 use soroban_sdk::token::{Client as TokenClient, StellarAssetClient as TestTokenClient};
-use soroban_sdk::{testutils::{Address as _, Ledger}, Address, Env};
-use vero_core_contracts::VeroContractClient;
+use soroban_sdk::testutils::{Address as _, Ledger as _};
+use soroban_sdk::{Address, Env};
+use vero_core_contracts::{VeroContractClient, Role};
 
 fn setup() -> (Env, Address, Address, Address, VeroContractClient<'static>) {
     let env = Env::default();
     env.mock_all_auths();
 
     let admin = Address::generate(&env);
-    let token = env.register_stellar_asset_contract(admin.clone());
+    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
 
     let contract_id = env.register_contract(None, vero_core_contracts::VeroContract);
     let client = VeroContractClient::new(&env, &contract_id);
 
     client.initialize(&admin, &token, &100i128);
+    client.grant_role(&admin, &admin, &Role::GuardianManager);
+    client.grant_role(&admin, &admin, &Role::ConfigManager);
 
     (env, contract_id, admin, token, client)
 }
@@ -49,7 +52,7 @@ fn test_fee_deduction() {
     env.ledger().set_timestamp(env.ledger().timestamp() + 86401u64);
 
     // Unlock tokens
-    client.unlock_tokens(&guardian);
+    client.resign_guardian(&guardian);
 
     // Unlocking 900. 10% fee = 90 goes to treasury. 810 to guardian.
     assert_eq!(token_client.balance(&treasury), 190);
