@@ -22,6 +22,12 @@ fn setup() -> (Env, Address, Address, VeroContractClient<'static>) {
 
     client.initialize(&admin, &token_addr, &LOCK_THRESHOLD);
 
+    client.grant_role(&admin, &admin, &Role::GuardianManager);
+    client.grant_role(&admin, &admin, &Role::TaskManager);
+    client.grant_role(&admin, &admin, &Role::ConfigManager);
+    client.grant_role(&admin, &admin, &Role::EmergencyManager);
+    client.grant_role(&admin, &admin, &Role::TreasuryManager);
+
     (env, admin, token_addr, client)
 }
 
@@ -148,6 +154,9 @@ fn test_cannot_revoke_last_admin_role() {
 fn test_can_revoke_admin_when_multiple_admins_exist() {
     let (env, admin, _token, client) = setup();
     let second_admin = Address::generate(&env);
+    
+    // Add them as a guardian so count_role_holders can find them
+    client.add_guardian(&admin, &second_admin);
     
     // Grant Admin role to a second address
     client.grant_role(&admin, &second_admin, &Role::Admin);

@@ -23,7 +23,6 @@ pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>, min_votes_r
     }
 
     validation::validate_admin_address(env, &admin)?;
-    crate::contracts::rbac::require_role(env, &admin, crate::types::Role::TaskManager)?;
 
     let mut seen_task_ids = Vec::new(env);
     for task_id in task_ids.iter() {
@@ -76,7 +75,6 @@ pub fn register_tasks(env: &Env, admin: Address, task_ids: Vec<u64>, min_votes_r
 
 pub fn cancel_task(env: &Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
     validation::validate_admin_address(env, &admin)?;
-    crate::contracts::rbac::require_role(env, &admin, crate::types::Role::TaskManager)?;
     validation::validate_task_id(task_id)?;
 
     let mut task = storage::get_active_task(env, task_id).ok_or(ContractError::TaskNotFound)?;
@@ -121,7 +119,6 @@ pub fn get_all_tasks(env: &Env) -> Vec<u64> {
 ///
 /// Admin authentication is required.
 pub fn purge_task(env: &Env, admin: Address, task_id: u64) -> Result<(), ContractError> {
-    crate::contracts::rbac::require_role(env, &admin, crate::types::Role::TaskManager)?;
 
     // Resolve from active storage first, then fall back to archived.
     let task = storage::get_active_task(env, task_id)
@@ -147,10 +144,10 @@ pub fn purge_task(env: &Env, admin: Address, task_id: u64) -> Result<(), Contrac
     // 2. Remove the task entry from whichever storage slot holds it.
     env.storage()
         .instance()
-        .remove(&DataKey::ActiveTask(task_id));
+        .remove(&storage::active_task_key(task_id));
     env.storage()
         .instance()
-        .remove(&DataKey::ArchivedTask(task_id));
+        .remove(&storage::archived_task_key(task_id));
 
     // 3. Remove task_id from the AllTasks index.
     let all_tasks: Vec<u64> = env

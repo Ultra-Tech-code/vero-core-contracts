@@ -2,9 +2,9 @@
 
 use soroban_sdk::{
     testutils::{Address as _, Events as _},
-    Address, BytesN, Env, Vec,
+    Address, BytesN, Env, Vec, TryIntoVal,
 };
-use vero_core_contracts::{ContractError, VeroContractClient};
+use vero_core_contracts::{ContractError, VeroContractClient, Role};
 
 fn setup() -> (Env, Address, Address, Address, VeroContractClient<'static>) {
     let env = Env::default();
@@ -20,6 +20,12 @@ fn setup() -> (Env, Address, Address, Address, VeroContractClient<'static>) {
     let token_addr = token.address();
 
     client.initialize(&admin, &token_addr, &100);
+    client.grant_role(&admin, &admin, &Role::GuardianManager);
+    client.grant_role(&admin, &admin, &Role::TaskManager);
+    client.grant_role(&admin, &admin, &Role::ConfigManager);
+    client.grant_role(&admin, &admin, &Role::EmergencyManager);
+    client.grant_role(&admin, &admin, &Role::TreasuryManager);
+
 
     (env, contract_id, admin, token_addr, client)
 }
@@ -40,7 +46,16 @@ fn generate_signers(env: &Env, n: u32) -> Vec<Address> {
 
 /// Helper to collect all events into a vector of event symbols for assertion.
 fn event_symbols(env: &Env) -> Vec<soroban_sdk::Symbol> {
-    Vec::new(env)
+    let mut symbols = Vec::new(env);
+    for e in env.events().all().iter() {
+        if let Some(topic) = e.1.get(0) {
+            let res: Result<soroban_sdk::Symbol, _> = topic.try_into_val(env);
+            if let Ok(sym) = res {
+                symbols.push_back(sym);
+            }
+        }
+    }
+    symbols
 }
 
 // ─── Happy path: full multi-sig upgrade flow ────────────────────────
@@ -383,7 +398,7 @@ fn test_propose_same_hash_adds_approval() {
     // Signer 2 also proposes with same hash — acts as approval
     let signer2 = signers.get(1).unwrap();
     let result = client.try_propose_upgrade(&signer2, &wasm_hash);
-    assert!(result.is_ok());
+    result.unwrap();
 
     // Signer 3 approves via approve_upgrade
     let signer3 = signers.get(2).unwrap();
@@ -414,7 +429,30 @@ fn test_upgrade_events_emitted() {
     let events = env.events().all();
     // Should have at least 3 events: up_sig, up_prop, up_app
     assert!(events.len() >= 3, "expected at least 3 upgrade events");
-    // Symbol assertions commented out due to upstream breakage
+    
+    let mut symbols = std::vec::Vec::new();
+    for e in events.iter() {
+        if let Some(topic) = e.1.get(0) {
+            let res: Result<soroban_sdk::Symbol, _> = topic.try_into_val(&env);
+            if let Ok(sym) = res {
+                symbols.push(sym.to_string());
+            }
+        }
+    }
+
+    assert!(
+        symbols.contains(&"up_sig".to_string()),
+        "expected up_sig event"
+    );
+    assert!(
+        symbols.contains(&"up_prop".to_string()),
+        "expected up_prop event"
+    );
+    assert!(
+        symbols.contains(&"up_app".to_string()),
+        "expected up_app event"
+    );
+}
 
 #[test]
 fn test_cancel_upgrade_emits_event() {
@@ -430,7 +468,20 @@ fn test_cancel_upgrade_emits_event() {
     client.cancel_upgrade(&admin);
 
     let events = env.events().all();
-    // Symbol assertions commented out due to upstream breakage
+    let mut symbols = std::vec::Vec::new();
+    for e in events.iter() {
+        if let Some(topic) = e.1.get(0) {
+            let res: Result<soroban_sdk::Symbol, _> = topic.try_into_val(&env);
+            if let Ok(sym) = res {
+                symbols.push(sym.to_string());
+            }
+        }
+    }
+
+    assert!(
+        symbols.contains(&"up_cncl".to_string()),
+        "expected up_cncl event"
+    );
 }
 
 // ─── Gas cost estimates ────────────────────────────────────────────
@@ -548,6 +599,7 @@ fn test_single_signer_succeeds_immediately() {
 fn test_upgrade_logic_successful() {
     let (env, admin, _token, client) = setup_without_signers();
 
+    client.grant_role(&admin, &admin, &Role::TaskManager);
     // We register a task to ensure state is present
     client.register_task(&admin, &1u64, &1u32);
     assert!(client.get_task(&1u64).is_some());
