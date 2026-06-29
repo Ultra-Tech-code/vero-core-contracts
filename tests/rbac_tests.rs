@@ -288,7 +288,7 @@ fn test_task_manager_can_register_task() {
     
     client.grant_role(&admin, &manager, &Role::TaskManager);
     
-    let result = client.try_register_task(&manager, &1);
+    let result = client.try_register_task(&manager, &1, &1u32);
     assert!(result.is_ok());
     assert!(client.get_task(&1).is_some());
 }
@@ -298,7 +298,7 @@ fn test_non_task_manager_cannot_register_task() {
     let (env, _admin, _token, client) = setup();
     let stranger = Address::generate(&env);
     
-    let result = client.try_register_task(&stranger, &1);
+    let result = client.try_register_task(&stranger, &1, &1u32);
     assert!(result.is_err());
     assert!(client.get_task(&1).is_none());
 }
@@ -309,7 +309,7 @@ fn test_task_manager_can_cancel_task() {
     let manager = Address::generate(&env);
     
     client.grant_role(&admin, &manager, &Role::TaskManager);
-    client.register_task(&manager, &1);
+    client.register_task(&manager, &1, &1u32);
     
     let result = client.try_cancel_task(&manager, &1);
     assert!(result.is_ok());
@@ -323,7 +323,7 @@ fn test_non_task_manager_cannot_cancel_task() {
     let stranger = Address::generate(&env);
     
     client.grant_role(&admin, &manager, &Role::TaskManager);
-    client.register_task(&manager, &1);
+    client.register_task(&manager, &1, &1u32);
     
     let result = client.try_cancel_task(&stranger, &1);
     assert!(result.is_err());
@@ -336,7 +336,7 @@ fn test_task_manager_can_purge_task() {
     let manager = Address::generate(&env);
     
     client.grant_role(&admin, &manager, &Role::TaskManager);
-    client.register_task(&manager, &1);
+    client.register_task(&manager, &1, &1u32);
     client.cancel_task(&manager, &1);
     
     let result = client.try_purge_task(&manager, &1);
@@ -351,7 +351,7 @@ fn test_non_task_manager_cannot_purge_task() {
     let stranger = Address::generate(&env);
     
     client.grant_role(&admin, &manager, &Role::TaskManager);
-    client.register_task(&manager, &1);
+    client.register_task(&manager, &1, &1u32);
     client.cancel_task(&manager, &1);
     
     let result = client.try_purge_task(&stranger, &1);
@@ -506,7 +506,7 @@ fn test_treasury_manager_role_required_for_reward_stream() {
     client.grant_role(&admin, &manager, &Role::TaskManager);
     
     // Register and resolve a task
-    client.register_task(&manager, &1);
+    client.register_task(&manager, &1, &1u32);
     let guardian = Address::generate(&env);
     client.grant_role(&admin, &admin, &Role::GuardianManager);
     client.add_guardian(&admin, &guardian);
@@ -535,7 +535,7 @@ fn test_non_treasury_manager_cannot_start_reward_stream() {
     client.grant_role(&admin, &admin, &Role::GuardianManager);
     
     // Register and resolve a task
-    client.register_task(&admin, &1);
+    client.register_task(&admin, &1, &1u32);
     let guardian = Address::generate(&env);
     client.add_guardian(&admin, &guardian);
     client.set_reputation(&admin, &guardian, &300);
@@ -614,7 +614,7 @@ fn test_address_can_hold_multiple_roles() {
     assert!(client.has_role(&multi_role_user, &Role::ConfigManager));
     
     // Can use both roles
-    client.register_task(&multi_role_user, &1);
+    client.register_task(&multi_role_user, &1, &1u32);
     client.set_weight_threshold(&multi_role_user, &400);
     
     assert!(client.get_task(&1).is_some());
@@ -640,7 +640,7 @@ fn test_backward_compatibility_admin_retains_all_powers() {
     client.set_reputation(&admin, &guardian, &300);
     
     // Task management
-    client.register_task(&admin, &1);
+    client.register_task(&admin, &1, &1u32);
     client.cancel_task(&admin, &1);
     
     // Configuration

@@ -6,7 +6,7 @@ use soroban_sdk::{
 };
 use vero_core_contracts::{ContractError, VeroContractClient};
 
-fn setup() -> (Env, Address, Address, VeroContractClient<'static>) {
+fn setup() -> (Env, Address, Address, Address, VeroContractClient<'static>) {
     let env = Env::default();
     env.mock_all_auths();
 
