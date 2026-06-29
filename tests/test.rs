@@ -3,6 +3,19 @@
 use soroban_sdk::token::{Client as TokenClient, StellarAssetClient as TestTokenClient};
 use soroban_sdk::{testutils::Address as _, Address, Env};
 use vero_core_contracts::VeroContractClient;
+fn setup() -> (Env, Address, Address, Address, VeroContractClient<'static>) {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register_contract(None, vero_core_contracts::VeroContract);
+    let client = VeroContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_addr = token.address();
+
+    client.initialize(&admin, &token_addr, &100i128);
 
     (env, contract_id, admin, token_addr, client)
 }

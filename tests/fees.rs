@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use soroban_sdk::token::{Client as TokenClient, StellarAssetClient as TestTokenClient};
-use soroban_sdk::{testutils::Address as _, Address, Env};
+use soroban_sdk::{testutils::{Address as _, Ledger}, Address, Env};
 use vero_core_contracts::VeroContractClient;
 
 fn setup() -> (Env, Address, Address, Address, VeroContractClient<'static>) {

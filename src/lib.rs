@@ -11,7 +11,6 @@ mod circuit_breaker;
 mod contracts;
 
 /// Pure consensus logic.
-#[cfg(any(feature = "verification", test))]
 pub mod consensus;
 
 mod drips;
