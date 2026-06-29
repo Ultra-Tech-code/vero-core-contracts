@@ -200,6 +200,23 @@ impl VeroContract {
         events::emit_vault_set(&env, &admin, &vault);
     }
 
+    pub fn set_fee_bps(env: Env, admin: Address, bps: u32) -> Result<(), ContractError> {
+        circuit_breaker::require_not_paused(&env)?;
+        crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::ConfigManager)?;
+        if bps > 1000 {
+            return Err(ContractError::InvalidConfig);
+        }
+        env.storage().instance().set(&DataKey::FeeBps, &bps);
+        Ok(())
+    }
+
+    pub fn set_treasury_address(env: Env, admin: Address, treasury: Address) -> Result<(), ContractError> {
+        circuit_breaker::require_not_paused(&env)?;
+        crate::contracts::rbac::require_role(&env, &admin, crate::types::Role::ConfigManager)?;
+        env.storage().instance().set(&DataKey::TreasuryAddress, &treasury);
+        Ok(())
+    }
+
     pub fn register_task(
         env: Env,
         admin: Address,
@@ -645,6 +662,12 @@ impl VeroContract {
                 }
                 BatchCall::EmergencyRecover(admin, recipient, amount) => {
                     Self::emergency_recover(env.clone(), admin, recipient, amount)?
+                }
+                BatchCall::SetFeeBps(admin, bps) => {
+                    Self::set_fee_bps(env.clone(), admin, *bps)?
+                }
+                BatchCall::SetTreasuryAddress(admin, treasury) => {
+                    Self::set_treasury_address(env.clone(), admin, treasury.clone())?
                 }
             }
         }

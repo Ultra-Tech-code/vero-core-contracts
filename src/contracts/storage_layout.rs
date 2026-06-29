@@ -42,4 +42,6 @@ pub enum DataKey {
     PendingUpgradeWasm,
     PendingUpgradeApprovals,
     StorageVersion,
+    FeeBps,
+    TreasuryAddress,
 }

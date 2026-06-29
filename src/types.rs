@@ -144,6 +144,8 @@ pub enum BatchCall {
     ExecuteUpgrade(Address),
     /// Cancel a pending upgrade.
     CancelUpgrade(Address),
+    SetFeeBps(Address, u32),
+    SetTreasuryAddress(Address, Address),
 }
 
 /// Every public write operation exposed by VeroContract.
@@ -179,6 +181,8 @@ pub enum Operation {
     CancelUpgrade = 20,
     /// `emergency_recover` — emergency token recovery while normal flows are unavailable.
     EmergencyRecover = 21,
+    SetFeeBps = 22,
+    SetTreasuryAddress = 23,
 }
 
 #[contracterror]
